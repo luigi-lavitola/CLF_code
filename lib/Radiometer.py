@@ -54,6 +54,10 @@ class Radiometer:
             print(f"RADM_MON_{self.model}:SET:Serial port is not open")
             return None
 
+    def read_power(self):
+        # 10-3 Joule
+        None
+
 
 class Radiometer3700(Radiometer):
 
@@ -112,6 +116,7 @@ class Radiometer3700(Radiometer):
             self.get("AD")
         except Exception as e:
             print(f"RADM_MON_{self.model}:SET_UP:ERROR:Some problem occurred: {e}")
+
     
     def set_range(self, range):
         self.flush_buffers()

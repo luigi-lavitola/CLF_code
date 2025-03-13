@@ -93,73 +93,74 @@ class RPCDevice:
             self.serial.flushInput()
             self.serial.write(b"\r")
             time.sleep(0.05)
+            if self.id >= 0 and self.id <= 6:
+                return self.state[self.id]
+            elif self.id == 0:
+                return sum(1 for s in self.state if s == 1)
+            else:
+                return -1
+    #     def status(self):
+    #         self.serial.flushInput()
+    #         self.serial.write(b"\r")
+    #         time.sleep(0.05)
 
-            response = self.read_response()
-            if "Circuit Breaker: Off" in response:
-                self.state[RPC_BREAKER] = 0
-                return -2
-            if "Circuit Breaker: On" in response:
-                self.state[RPC_BREAKER] = 1
+    #         response = self.read_response()
+    #         if "Circuit Breaker: Off" in response:
+    #             self.state[RPC_BREAKER] = 0
+    #             return -2
+    #         if "Circuit Breaker: On" in response:
+    #             self.state[RPC_BREAKER] = 1
 
-            outlet_status = {
-                "1)...ramansys  : On": RPC_RAMAN,
-                "2)...rad (mon) : On": RPC_RAD,
-                "3)...laser     : On": RPC_LSR,
-                "4)...rmotor    : On": RPC_RCOVER,
-                "5)...Vcover    : On": RPC_VCOVER,
-                "6)...vxm       : On": RPC_VXM
-            }
+    #         outlet_status = {
+    #             "1)...ramansys  : On": RPC_RAMAN,
+    #             "2)...rad (mon) : On": RPC_RAD,
+    #             "3)...laser     : On": RPC_LSR,
+    #             "4)...rmotor    : On": RPC_RCOVER,
+    #             "5)...Vcover    : On": RPC_VCOVER,
+    #             "6)...vxm       : On": RPC_VXM
+    #         }
 
-            outlet_off_status = {
-                "1)...ramansys  : Off": RPC_RAMAN,
-                "2)...rad (mon) : Off": RPC_RAD,
-                "3)...laser     : Off": RPC_LSR,
-                "4)...rmotor    : Off": RPC_RCOVER,
-                "5)...Vcover    : Off": RPC_VCOVER,
-                "6)...vxm       : Off": RPC_VXM
-            }
+    #         outlet_off_status = {
+    #             "1)...ramansys  : Off": RPC_RAMAN,
+    #             "2)...rad (mon) : Off": RPC_RAD,
+    #             "3)...laser     : Off": RPC_LSR,
+    #             "4)...rmotor    : Off": RPC_RCOVER,
+    #             "5)...Vcover    : Off": RPC_VCOVER,
+    #             "6)...vxm       : Off": RPC_VXM
+    #         }
 
-            for line in response.split('\n'):                
-                for key, val in outlet_status.items():
-                    if key in line:
-                        self.state[val] = 1
-                for key, val in outlet_off_status.items():
-                    if key in line:
-                        self.state[val] = 0
-    def on(self, outlet):
-        for _ in range(3):
-            self.send_command(f"on {outlet}")
-        if self.status(outlet) == 1:
-            return 1
-        for _ in range(4):
-            self.send_command(f"on {outlet}")
-        if self.status(outlet) == 1:
-            return 1
-        print(f"RPC:ON:ERROR:Outlet {outlet} did not turn ON.")
-        return 0
+    #         for line in response.split('\n'):                
+    #             for key, val in outlet_status.items():
+    #                 if key in line:
+    #                     self.state[val] = 1
+    #             for key, val in outlet_off_status.items():
+    #                 if key in line:
+    #                     self.state[val] = 0
+    # def on(self, outlet):
+    #     for _ in range(3):
+    #         self.send_command(f"on {outlet}")
+    #     if self.status(outlet) == 1:
+    #         return 1
+    #     for _ in range(4):
+    #         self.send_command(f"on {outlet}")
+    #     if self.status(outlet) == 1:
+    #         return 1
+    #     print(f"RPC:ON:ERROR:Outlet {outlet} did not turn ON.")
+    #     return 0
 
-    def off(self, outlet):
-        for _ in range(3):
-            self.send_command(f"off {outlet}")
-        if self.status(outlet) == 0:
-            return 0
-        for _ in range(4):
-            self.send_command(f"off {outlet}")
-        if self.status(outlet) == 0:
-            return 0
-        print(f"RPC:OFF:ERROR:Outlet {outlet} did not turn OFF.")
-        return 1
+    # def off(self, outlet):
+    #     for _ in range(3):
+    #         self.send_command(f"off {outlet}")
+    #     if self.status(outlet) == 0:
+    #         return 0
+    #     for _ in range(4):
+    #         self.send_command(f"off {outlet}")
+    #     if self.status(outlet) == 0:
+    #         return 0
+    #     print(f"RPC:OFF:ERROR:Outlet {outlet} did not turn OFF.")
+    #     return 1
 
-    def status(self, outlet):
-        self.serial.flushInput()
-        self.serial.write(b"\r")
-        time.sleep(0.05)
-        if self.id >= 0 and self.id <= 6:
-            return self.state[self.id]
-        elif self.id == 0:
-            return sum(1 for s in self.state if s == 1)
-        else:
-            return -1
+    
 
 if __name__ == "__main__":
     # usage with serial object as parameter

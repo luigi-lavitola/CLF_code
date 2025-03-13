@@ -12,7 +12,7 @@ BUFSIZE = 255         #input, output buffer size */
 
 class Centurion:
 
-    def __init__(self, port, baudrate = 57600, timeout = 5, parity = serial.PARITY_EVEN, string_return = 255):
+    def __init__(self, port, baudrate = 57600, timeout = 2, parity = serial.PARITY_EVEN, string_return = 255):
         self.port = port
         self.serial = None
         self.string_return = string_return
@@ -31,7 +31,7 @@ class Centurion:
 
         if isinstance(port, str):
             try:
-                self.serial = serial.Serial(port, baudrate, timeout, parity)
+                self.serial = serial.Serial(port=port, baudrate=baudrate, parity=parity, timeout=timeout)
                 print(f"CENT:CONN:Connected to {port} at {baudrate} baud")
             except serial.SerialException as e:
                 print(f"CENT:CONN:Unable to reach the device {port}: {e}")
@@ -42,12 +42,13 @@ class Centurion:
         else:
             raise TypeError
 
-    def read_response(self):   
-
+    def read_response(self):
+           
         if self.serial and self.serial.is_open:
             try:
-                response = str(self.serial.read(self.string_return).decode(errors='ignore').strip())
                 
+                response = str(self.serial.read(255).decode())
+                print(response)
                 return response
             except serial.SerialException: 
                 print(f"CENT:READ_R:ERROR:Unable to read response")
@@ -58,12 +59,13 @@ class Centurion:
 
         if self.serial and self.serial.is_open:
             try:
-                self.serial.flushInput()
+                self.serial.flush()
+                
                 self.serial.write(f"{command}\r".encode())
                 time.sleep(0.5)
 
                 response = self.read_response()
-
+                
                 return response
 
             except serial.SerialException as e:
@@ -225,7 +227,6 @@ class Centurion:
                 except ValueError:
                     print(f"CENT:READ_BYTES:ERROR:Bytes received: {status}")
                     return -1
-
             else:
                 print(f"CENT:READ_BYTES:ERROR:WRONG STRING RECEIVED:Bytes received: {status}")  
                 return -2  
@@ -297,9 +298,9 @@ class Centurion:
             if len(parts) == 4 and parts[0] == '$TEMPS':
                     
                 try:
-                    self.head_temp = int(parts[1], 16)
-                    self.dump_temp = int(parts[2], 16)
-                    self.plate_temp = int(parts[3], 16)
+                    self.head_temp = int(parts[1])
+                    self.dump_temp = int(parts[2])
+                    self.plate_temp = int(parts[3])
 
                     print(f"CENT:CHECK_TEMPS:TEMPS:head:{self.head_temp}, dump:{self.dump_temp}, plate:{self.plate_temp}")
                     return 0
@@ -350,11 +351,11 @@ class Centurion:
     def fire(self):
 
         self.flush_buffers()
-        status = self.read_status("$STATU")
+        status = self.read_status()
 
-        while status != "7e":
-            self.send_command("$STAND")
-            status = self.check_parameter("$STATU")
+        #while self.state != "7e":
+        #    self.send_command("$STAND")
+        #    status = self.read_status()
 
         self.check_temps()
         if self.head_temp <= 450 and self.dump_temp <= 450 and self.plate_temp <= 450:
@@ -362,7 +363,7 @@ class Centurion:
            
 
 if __name__ == "__main__":
-    c = Centurion("/dev/ttyUSB0", 57600, 5, serial.PARITY_EVEN, 255)
+    c = Centurion("/dev/ttyr01", 57600, 2, serial.PARITY_EVEN, 255)
 
     # usage with serial object as parameter
     #s = serial.Serial("/dev/ttyUSB0", 57600)
