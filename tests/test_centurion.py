@@ -3,18 +3,13 @@
 import sys
 import os
 import time
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from lib.Centurion import Centurion
 
-lib_path = os.path.abspath('opt/CLF_CODE/lib/')
-
-# Append it to sys.path
-sys.path.append(lib_path)
-
-
-from Centurion import Centurion
-
-c = Centurion("/dev/ttyr00")
+c = Centurion("/dev/ttyr01")
 time.sleep(1)
-c.set_mode()
-time.sleep(5)
-c.warmup()
-c.read_bytes()
+c.send_command("$STATUS")
+#c.set_mode()
+#time.sleep(5)
+#c.warmup()
+#c.read_bytes()

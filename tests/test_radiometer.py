@@ -11,6 +11,7 @@ rm1.set("TG", 3)
 rm1.set("foo", 3)                       # UNK
 print(f'TG = {rm1.get("TG")}')
 print(f'MUU = {rm1.get("MUU")}')        # UNK
+rm1.setup()
 print("\n\n")
 
 rm2 = Radiometer3700("/dev/ttyr04")
