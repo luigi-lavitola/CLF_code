@@ -4,12 +4,14 @@ import serial
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from lib.RPC import RPCDevice
 from lib.VXM import VXM
+from lib.FPGADevice import FPGADevice
 
 class DeviceCollection:
     def __init__(self):
         self.serials = {}
         self.outlets = {}
         self.motors = {}
+        self.fpga = FPGADevice("/dev/runcontrol")
 
     def init(self, cfg):
         # outlets
@@ -27,7 +29,6 @@ class DeviceCollection:
         # motors
         for mname, mparams in cfg.motors.items():
             port_params = cfg.get_port_params(mparams['port'])
-            print(mname, mparams, port_params)
             self.add_motor(mparams['id'], mname,
                 port=port_params['port'],
                 speed=port_params['speed'],

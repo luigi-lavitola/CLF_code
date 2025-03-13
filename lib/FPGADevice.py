@@ -4,7 +4,20 @@ import time
 
 class FPGADevice:
 
+    __instance = None
+
+    @staticmethod
+    def getInstance():
+        if FPGADevice.__instance == None:
+            raise Exception("Class FPGADevice - no instance")
+        return FPGADevice.__instance
+
     def __init__(self, port, baudrate = 115200):
+        if FPGADevice.__instance != None:
+            raise Exception("Class FPGADevice - use existing instance")
+        else:
+            FPGADevice.__instance = self
+
         self.port = port
         self.baudrate = baudrate
         self.serial = None
