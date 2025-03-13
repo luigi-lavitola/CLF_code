@@ -17,7 +17,8 @@ tla = TLA2518()
 adc = tla.get_ftdi_backend(slave)
 
 # Nome del file di log
-log_file = "adc_log.csv"
+log_file = "adc_log_calib.csv"
+calib=[12.698329443235162, 12.857486052905534, 12.580072988236255, 12, 12, 12, 12, 12.597657636342127]
 
 # Scrive l'intestazione del file CSV se non esiste
 def initialize_csv():
@@ -30,7 +31,7 @@ def initialize_csv():
 def log_data():
     while True:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        values = [adc.read_channel(ch)*12 for ch in range(8)]
+        values = [adc.read_channel(ch)*calib[ch] for ch in range(8)]
         
         with open(log_file, mode='a', newline='') as file:
             writer = csv.writer(file)
