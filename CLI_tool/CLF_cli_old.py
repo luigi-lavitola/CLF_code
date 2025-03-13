@@ -45,26 +45,24 @@ class CLF_app(cmd2.Cmd):
         #self.prompt = self.bright_black(f'CLF:{self.param.mode} > ')
 
             # Move text styles here
-        # self.bright_black = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_black)
-        # self.bright_yellow = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_yellow)
-        # self.bright_green = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_green)
-        # self.bright_red = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_red)
-        # self.bright_cyan = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_cyan)
-        # self.bright_blue = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_blue)
-        # self.yellow = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.yellow)
-        # self.blue = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_blue)
-        # self.alarm_red = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_white, bg=cmd2.ansi.bg.bright_red)
+        #self.bright_black = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_black)
+        #self.bright_yellow = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_yellow)
+        #self.bright_green = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_green)
+        #self.bright_red = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_red)
+        #self.bright_cyan = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_cyan)
+        #self.bright_blue = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_blue)
+        #self.yellow = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.yellow)
+        #self.blue = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_blue)
+        #self.alarm_red = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_white, bg=cmd2.ansi.bg.bright_red)
 
-        # self.allow_style = cmd2.ansi.allow_style
-        # self.prompt = self.bright_black(f'CLF: > ')
+        #self.allow_style = cmd2.ansi.allow_style
+        #self.prompt = self.bright_black(f'CLF: > ')
 
         cmd2.categorize(
             (cmd2.Cmd.do_alias, cmd2.Cmd.do_help, cmd2.Cmd.do_history, cmd2.Cmd.do_quit, cmd2.Cmd.do_set, cmd2.Cmd.do_run_script),
             "General commands" 
         )
-
-    
-    
+        
     #rpc = RPCDevice('/dev/ttyr00')  # Modifica la porta se necessario
     laser = Centurion("/dev/ttyr01")
     
@@ -83,7 +81,7 @@ class CLF_app(cmd2.Cmd):
                 stopbits=port_params['stopbits'],
                 timeout=port_params['timeout']
             )
-        #dc.get_outlet("RAMAN_inst").on()
+        dc.get_outlet("RAMAN_inst").on()
 
 
     rpc_parser = argparse.ArgumentParser()
@@ -93,16 +91,13 @@ class CLF_app(cmd2.Cmd):
     @cmd2.with_argparser(rpc_parser)
     @cmd2.with_category("Instruments command")
     def do_rpc(self, args: argparse.Namespace) -> None:
-        plugs=['RAMAN_inst', 'radiometer', 'laser', 'RAMAN_cover', 'Vert_cover', 'VXM']
         if args.status == 1:
             print('on to plug ' + str(args.value))
-            dc.get_outlet(plugs[args.value-1]).on()
             comando ='on ' + str(args.value)
         else:
             print('off to plug ' + str(args.value) )
-            dc.get_outlet(plugs[args.value-1]).off()
             comando ='off ' + str(args.value)
-        #self.rpc.send_command(comando)
+        self.rpc.send_command(comando)
     
     ######### LASER FUNCTIONS ##################
     @cmd2.with_category("laser command")
