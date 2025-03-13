@@ -1,4 +1,5 @@
 import serial
+import time
 
 class FPGARunControl:
 
@@ -23,6 +24,8 @@ class FPGARunControl:
          
    def write_register(self, addr, value):
       self.serial.write(f"{str(hex(addr))[2:]} {str(hex(value))[2:]}\r".encode())
+      time.sleep(0.1)
+      self.serial.read_all()
 
    
 
