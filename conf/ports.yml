@@ -1,24 +1,73 @@
 
-FTDI:1:
-  port: "/dev/ttyUSB0"
-  speed: 115200
+RPC:
+  port: "/dev/ttyr00"
+  speed: 9600
   bytesize: 8
   parity: 'N'
   stopbits: 1
   timeout: 1
 
-FTDI:2:
-  port: "/dev/ttyUSB1"
-  speed: 115200
+Laser:
+  port: "/dev/ttyr01"
+  speed: 57600
+  bytesize: 8
+  parity: serial.PARITY_EVEN
+  stopbits: 1
+  timeout: 1
+
+Rad_mon_1:
+  port: "/dev/ttyr02"
+  speed: 9600
   bytesize: 8
   parity: 'N'
   stopbits: 1
   timeout: 1
 
-MOXA:3:
-  port: "/dev/ttyr0d"
-  speed: 115200
+Motor_calib:
+  port: "/dev/ttyr03"
+  speed: 9600
   bytesize: 8
   parity: 'N'
   stopbits: 1
   timeout: 1
+
+Rad_mon_2:
+  port: "/dev/ttyr04"
+  speed: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+Rad_mon_3:
+  port: "/dev/ttyr05"
+  speed: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+Cover_box_steering:
+  port: "/dev/ttyr06"
+  speed: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+weather_Station:
+  port: "/dev/ttyr07"
+  speed: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+steering_motor:
+  port: "/dev/ttyr08"
+  speed: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+

@@ -1,13 +1,23 @@
+RAMAN_inst:
+  port: "RPC"
+  id: 1
 
-RAMAN1:
-  port: "FTDI:1"
+radiometer:
+  port: "RPC"
+  id: 2
+
+laser:
+  port: "RPC"
+  id: 3
+
+RAMAN_cover:
+  port: "RPC"
   id: 4
 
-PC:
-  port: "FTDI:1"
+Vert_cover:
+  port: "RPC"
   id: 5
 
-RAMAN2:
-  port: "FTDI:1"
+VXM:
+  port: "RPC"
   id: 6
-

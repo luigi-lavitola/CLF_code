@@ -1,12 +1,22 @@
 
-NorthSud:
-  port: "FTDI:2"
-  id: 0
-
-Cover:
-  port: "FTDI:2"
+LwNorthSud:
+  port: "Motor_calib"
   id: 1
 
-EastWest:
-  port: "FTDI:2"
+LwPolarizer:
+  port: "Motor_calib"
   id: 2
+
+UpNorthSud:
+  port: "Motor_calib"
+  id: 3
+
+UpEastWest:
+  port: "Motor_calib"
+  id: 4
+
+Cover:
+  port: "Cover_box_steering"
+  id: 1
+
+
