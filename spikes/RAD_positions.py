@@ -29,8 +29,8 @@ def initialize_up():
 
     print("UPPER MOTORS INITIALIZATION:STARTING")
 
-    dc.get_motor("UpNorthSud").set_model(1)
-    dc.get_motor("UpNorthSud").set_acc(2000)
+    dc.get_motor("UpNorthSouth").set_model(1)
+    dc.get_motor("UpNorthSouth").set_acc(2000)
 
     dc.get_motor("UpEastWest").set_model(1)
     dc.get_motor("UpEastWest").set_acc(2000)
@@ -41,8 +41,8 @@ def initialize_lw():
     
     print("LOWER MOTORS INITIALIZATION:STARTING")
 
-    dc.get_motor("LwNorthSud").set_model(1)
-    dc.get_motor("LwNorthSud").set_acc(2000)
+    dc.get_motor("LwNorthSouth").set_model(1)
+    dc.get_motor("LwNorthSouth").set_acc(2000)
 
     dc.get_motor("LwPolarizer").set_model(1)
     dc.get_motor("LwPolarizer").set_acc(2000)
@@ -63,7 +63,7 @@ def position_rad2():
 
     print("MOVING RADIOMETER 2 IN POSITION:STARTING")
 
-    dc.get_motor("UpNorthSud").move_ABS(1300)
+    dc.get_motor("UpNorthSouth").move_ABS(1300)
     dc.get_motor("UpEastWest").move_ABS(20200)
 
     print("MOVING RADIOMETER 2 IN POSITION:COMPLETE")
@@ -73,7 +73,7 @@ def home_rad2():
     print("MOVING RADIOMETER 2 IN HOME:STARTING")
 
 
-    dc.get_motor("UpNorthSud").move_ABS0()
+    dc.get_motor("UpNorthSouth").move_ABS0()
     dc.get_motor("UpEastWest").move_ABS0()
 
     print("MOVING RADIOMETER 2 IN HOME:COMPLETE")
@@ -83,7 +83,7 @@ def position_rad3():
 
     print("MOVING RADIOMETER 3 IN POSITION:STARTING")
 
-    dc.get_motor("UpNorthSud").move_ABS(33250)
+    dc.get_motor("UpNorthSouth").move_ABS(33250)
     dc.get_motor("UpEastWest").move_ABS(4470)
 
     print("MOVING RADIOMETER 3 IN POSITION:COMPLETE")
@@ -92,7 +92,7 @@ def home_rad3():
 
     print("MOVING RADIOMETER 3 IN HOME:STARTING")
 
-    dc.get_motor("UpNorthSud").move_ABS0()
+    dc.get_motor("UpNorthSouth").move_ABS0()
     dc.get_motor("UpEastWest").move_ABS0()
 
     print("MOVING RADIOMETER 3 IN HOME:COMPLETE")
@@ -102,7 +102,7 @@ def position_pol():
 
     print("MOVING POLARIZER IN POSITION:STARTING")
 
-    dc.get_motor("LwNorthSud").move_ABS(18900)
+    dc.get_motor("LwNorthSouth").move_ABS(18900)
 
     print("MOVING POLARIZER IN POSITION:COMPLETE")
 
@@ -110,7 +110,7 @@ def home_pol():
 
     print("MOVING POLARIZER IN HOME:STARTING")
 
-    dc.get_motor("LwNorthSud").move_ABS0()
+    dc.get_motor("LwNorthSouth").move_ABS0()
 
     print("MOVING POLARIZER IN HOME:COMPLETE")
 
@@ -156,21 +156,22 @@ if __name__ == "__main__":
     #position_pol()
     #time.sleep(5)
 
-    #rotate_pol(30)
-    #time.sleep(2)
+    #rotate_pol(90)
+    #time.sleep(5)
     #rotate_pol(60)
     #time.sleep(2)
 
-    #zero_pol()
+    zero_pol()
     #time.sleep(5)
-    #home_pol()
+    home_pol()
     #time.sleep(5)
-    #home_rad3()
+    home_rad3()
     #time.sleep(5)
-    initialize_cover()
-    open_steering()
-    time.sleep(5)
-    close_steering()
+    #position_rad2()
+    #initialize_cover()
+    #open_steering()
+    #time.sleep(5)
+    #close_steering()
     
 
 
