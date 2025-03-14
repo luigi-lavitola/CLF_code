@@ -18,6 +18,7 @@ rm2 = Radiometer3700("/dev/ttyr04")
 rm2.info()
 rm2.set("TG", 3)
 rm2.set("bar", 2)                       # UNK
+rm2.setup()
 print("\n\n")
 
 rm3 = RadiometerOphir("/dev/ttyr05")
