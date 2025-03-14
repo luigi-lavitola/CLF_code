@@ -1,0 +1,13 @@
+
+Rad1:
+  port: "Rad_mon_1"
+  model: "3700"
+
+Rad2:
+  port: "Rad_mon_2"
+  model: "3700"
+
+Rad3:
+  port: "Rad_mon_3"
+  model: "ophir"
+

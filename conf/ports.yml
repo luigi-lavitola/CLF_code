@@ -13,7 +13,7 @@ Laser:
   bytesize: 8
   parity: serial.PARITY_EVEN
   stopbits: 1
-  timeout: 1
+  timeout: 0.1
 
 Rad_mon_1:
   port: "/dev/ttyr02"
@@ -29,7 +29,7 @@ Motor_calib:
   bytesize: 8
   parity: 'N'
   stopbits: 1
-  timeout: 1
+  timeout: 0.2
 
 Rad_mon_2:
   port: "/dev/ttyr04"

@@ -1,5 +1,5 @@
 
-LwNorthSud:
+LwNorthSouth:
   port: "Motor_calib"
   id: 1
 
@@ -7,7 +7,7 @@ LwPolarizer:
   port: "Motor_calib"
   id: 2
 
-UpNorthSud:
+UpNorthSouth:
   port: "Motor_calib"
   id: 3
 
