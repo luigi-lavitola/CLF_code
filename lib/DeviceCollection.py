@@ -4,6 +4,7 @@ import serial
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from lib.RPC import RPCDevice
 from lib.VXM import VXM
+from lib.Radiometer import Radiometer3700, RadiometerOphir
 from lib.FPGADevice import FPGADevice
 
 class DeviceCollection:
@@ -11,6 +12,7 @@ class DeviceCollection:
         self.serials = {}
         self.outlets = {}
         self.motors = {}
+        self.radiometers = {}
         self.fpga = FPGADevice("/dev/runcontrol")
 
     def init(self, cfg):
@@ -30,6 +32,18 @@ class DeviceCollection:
         for mname, mparams in cfg.motors.items():
             port_params = cfg.get_port_params(mparams['port'])
             self.add_motor(mparams['id'], mname,
+                port=port_params['port'],
+                speed=port_params['speed'],
+                bytesize=port_params['bytesize'],
+                parity=port_params['parity'],
+                stopbits=port_params['stopbits'],
+                timeout=port_params['timeout']
+            )
+
+        # radiometers 
+        for rname, rparams in cfg.radiometers.items():
+            port_params = cfg.get_port_params(rparams['port'])
+            self.add_radiometer(rname, rparams['model'],
                 port=port_params['port'],
                 speed=port_params['speed'],
                 bytesize=port_params['bytesize'],
@@ -71,6 +85,23 @@ class DeviceCollection:
 
     def get_motor(self, name):
         return self.motors[name]
+
+    def add_radiometer(self, name, model, port, speed=115200, bytesize=8, parity='N', stopbits=1, timeout=1):
+        if(self.serials.get(port, None) == None):
+            s = serial.Serial(
+                port=port, 
+                baudrate=speed, 
+                bytesize=bytesize, 
+                parity=parity,
+                stopbits = stopbits,
+                timeout = timeout)
+            if model == "3700":
+                self.serials[port] = Radiometer3700(s)
+            elif str.lower(model) == "ophir":
+                self.serials[port] = RadiometerOphir(s)
+
+    def get_radiometer(self, name):
+        return self.radiometer[name]
 
     def __repr__(self):
         return f'{self.outlets}'

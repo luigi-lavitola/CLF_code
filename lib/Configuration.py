@@ -6,6 +6,7 @@ class Configuration:
         self.ports = {}
         self.motors = {}
         self.outlets = {}
+        self.radiometers = {}
 
     def read(self):
         with open('conf/ports.yml', 'r') as f:
@@ -25,6 +26,12 @@ class Configuration:
             for doc in docs:
                 for k,v in doc.items():
                     self.outlets[k] = v
+
+        with open('conf/radiometers.yml', 'r') as f:
+            docs = yaml.safe_load_all(f)
+            for doc in docs:
+                for k,v in doc.items():
+                    self.radiometers[k] = v
 
     def get_port_params(self, port):
         return self.ports.get(port, None)
