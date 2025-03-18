@@ -2,3 +2,4 @@ ieee754==0.11
 pyftdi==0.56.0
 pyserial==3.5
 PyYAML==6.0.2
+cmd2==2.5.11
