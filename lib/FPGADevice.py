@@ -29,16 +29,42 @@ class FPGADevice:
 
         self.regmap = {}
         self.regmap["unixtime"] = FPGARegister(0x0, 2)
-        self.regmap["npulses"] = FPGARegister(0x3)
+        self.regmap["pps_delay"] = FPGARegister(0x5, 2)
+        self.regmap["pps_distance"] = FPGARegister(0xB)
+        self.regmap["pid_value"] = FPGARegister(0xC)
+        self.regmap["time_cnt"] = FPGARegister(0xD, 2)
+        self.regmap["vcxo_value"] = FPGARegister(0xF)
+        self.regmap["pid_dac"] = FPGARegister(0x10)
+        self.regmap["pid_dac_p"] = FPGARegister(0x11)
+        self.regmap["pid_dac_i"] = FPGARegister(0x12)
+        self.regmap["pulse_width"] = FPGARegister(0x13)
+        self.regmap["pulse_energy"] = FPGARegister(0x14, 2)
+        self.regmap["arm_unixtime"] = FPGARegister(0x19, 2)
+        self.regmap["pulse_period"] = FPGARegister(0x1B, 2)
+        self.regmap["mux_bnc_0"] = FPGARegister(0x1D)
+        self.regmap["mux_bnc_1"] = FPGARegister(0x1E)
+        self.regmap["mux_bnc_2"] = FPGARegister(0x1F)
+        self.regmap["mux_bnc_3"] = FPGARegister(0x20)
+        self.regmap["mux_bnc_4"] = FPGARegister(0x21)
+        self.regmap["shots_num"] = FPGARegister(0x22, 2)
+        self.regmap["shots_cnt"] = FPGARegister(0x24, 2)
 
         self.iomap = {}
+        self.iomap["laser_start"] = FPGAIO(0x3, 0)
+        self.iomap["laser_en"] = FPGAIO(0x3, 1)
         self.iomap["norain"] = FPGAIO(0x16, 0)
         self.iomap["rain"] = FPGAIO(0x16, 1)
         self.iomap["cover_closed"] = FPGAIO(0x16, 2, inverted=True)
         self.iomap["cover_open"] = FPGAIO(0x16, 3, inverted=True)
         self.iomap["inverter"] = FPGAIO(0x17, 0)
-        self.iomap["flipper1"] = FPGAIO(0x17, 1)
+        self.iomap["flipper_steer"] = FPGAIO(0x17, 1)
         self.iomap["flipper_raman"] = FPGAIO(0x17, 2)
+        self.iomap["flipper_atten"] = FPGAIO(0x17, 3)
+
+        self.iomap["pps_ok"] = FPGAIO(0x7, 2)
+        self.iomap["jc_lock"] = FPGAIO(0x8, 2)
+        self.iomap["vcxo_lock"] = FPGAIO(0x8, 3)
+        self.iomap["force_align"] = FPGAIO(0x9, 4)
 
     def close(self):
         self.serial.close()
@@ -66,7 +92,13 @@ class FPGADevice:
     def write_register(self, name, value):
         addr = self.regmap[name].get_addr()
         self.write_address(addr, value)
-        
+
+    def read_bit(self, name):
+        return self.read_dio(name) 
+
+    def write_bit(self, name, b):
+        self.write_dio(name, b)
+
     def read_dio(self, name):
         if self.iomap.get(name, None) is None:
             raise NameError
@@ -89,6 +121,7 @@ class FPGADevice:
         else:
             value = value & ~(1 << bit)
         self.write_address(addr, value)
+
     
 class FPGAIO(FPGADevice):
 

@@ -38,4 +38,7 @@ print(fp.read_dio("inverter"))
 print("9. turn on DIO inverter")
 fp.write_dio("inverter", 1)
 
+print("10. read pps_ok flag")
+print(fp.read_bit("pps_ok"))
+
 fp.close()
