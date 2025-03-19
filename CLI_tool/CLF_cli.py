@@ -32,7 +32,7 @@ dc = DeviceCollection()
 
 class CLF_app(cmd2.Cmd):
 
-    def __init__(self, mode, param):
+    def __init__(self, param):
         super().__init__(allow_cli_args=False)
         del cmd2.Cmd.do_edit
         del cmd2.Cmd.do_macro
@@ -40,24 +40,9 @@ class CLF_app(cmd2.Cmd):
         del cmd2.Cmd.do_shell
         del cmd2.Cmd.do_shortcuts
 
-        self.param = param
-        self.port = self.param.port
-        self.prompt=  "clf> "
-        #self.prompt = self.bright_black(f'CLF:{self.param.mode} > ')
 
-            # Move text styles here
-        # self.bright_black = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_black)
-        # self.bright_yellow = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_yellow)
-        # self.bright_green = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_green)
-        # self.bright_red = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_red)
-        # self.bright_cyan = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_cyan)
-        # self.bright_blue = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_blue)
-        # self.yellow = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.yellow)
-        # self.blue = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_blue)
-        # self.alarm_red = functools.partial(cmd2.ansi.style, fg=cmd2.ansi.fg.bright_white, bg=cmd2.ansi.bg.bright_red)
-
-        # self.allow_style = cmd2.ansi.allow_style
-        # self.prompt = self.bright_black(f'CLF: > ')
+        self.prompt = cmd2.ansi.style("clf> ", fg=cmd2.fg.green)
+        self.intro = cmd2.ansi.style("Welcome to the CLF CLI, type help for the list of commands", fg=cmd2.fg.red)
 
         cmd2.categorize(
             (cmd2.Cmd.do_alias, cmd2.Cmd.do_help, cmd2.Cmd.do_history, cmd2.Cmd.do_quit, cmd2.Cmd.do_set, cmd2.Cmd.do_run_script),
@@ -69,13 +54,13 @@ class CLF_app(cmd2.Cmd):
 
     ##### RPC Functions ############
     plugs=[]
-    @cmd2.with_category("Instruments command")
+    @cmd2.with_category("RPC command")
     def do_rpc_init(self, args: argparse.Namespace) -> None:
         for oname, oparams in cfg.outlets.items():
             port_params = cfg.get_port_params(oparams['port'])
             dc.add_outlet(oparams['id'], oname,
                 port=port_params['port'],
-                speed=port_params['speed'],
+                baudrate=port_params['baudrate'],
                 bytesize=port_params['bytesize'],
                 parity=port_params['parity'],
                 stopbits=port_params['stopbits'],
@@ -89,7 +74,7 @@ class CLF_app(cmd2.Cmd):
     rpc_parser.add_argument('status', type=str, help='status of the plug on off', choices=['on','off'])
 
     @cmd2.with_argparser(rpc_parser)
-    @cmd2.with_category("Instruments command")
+    @cmd2.with_category("RPC command")
     def do_rpc(self, args: argparse.Namespace) -> None:
         
         if args.status == 'on':
@@ -101,6 +86,46 @@ class CLF_app(cmd2.Cmd):
             print('off to plug ' + args.value )
             ind=self.plugs.index(args.value)
             dc.get_outlet(str(self.plugs[ind])).off() 
+
+    @cmd2.with_category("RPC command")
+    def do_on_instruments(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("radiometer").on()
+        dc.get_outlet("laser").on()
+        dc.get_outlet("VXM").on()
+    
+    @cmd2.with_category("RPC command")
+    def do_off_instruments(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("radiometer").off()
+        dc.get_outlet("laser").off()
+        dc.get_outlet("VXM").off()
+
+    
+    @cmd2.with_category("RPC command")
+    def do_on_raman(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("RAMAN_inst").on()
+    
+    @cmd2.with_category("RPC command")
+    def do_off_raman(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("RAMAN_inst").off()
+
+    @cmd2.with_category("RPC command")
+    def do_open_vert_cover(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("Vert_cover").on()
+    
+    @cmd2.with_category("RPC command")
+    def do_close_vert_cover(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("Vert_cover").off()
+    
+    @cmd2.with_category("RPC command")
+    def do_open_Raman_cover(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("RAMAN_inst").on()
+        time.sleep(1)
+        dc.get_outlet("Raman_cover").on()
+
+    @cmd2.with_category("RPC command")
+    def do_close_Raman_cover(self, args: argparse.Namespace) -> None:
+        dc.get_outlet("Raman_cover").off()
+
 
     ######### LASER FUNCTIONS ##################
     @cmd2.with_category("laser command")
@@ -162,7 +187,7 @@ class CLF_app(cmd2.Cmd):
             port_params = cfg.get_port_params(mparams['port'])
             dc.add_motor(mparams['id'], mname,
                 port=port_params['port'],
-                speed=port_params['speed'],
+                baudrate=port_params['baudrate'],
                 bytesize=port_params['bytesize'],
                 parity=port_params['parity'],
                 stopbits=port_params['stopbits'],
@@ -191,14 +216,59 @@ class CLF_app(cmd2.Cmd):
     def do_VXM_home_UP(self, args: argparse.Namespace) -> None:
         dc.get_motor("UpNorthSouth").move_ABS0()
         dc.get_motor("UpEastWest").move_ABS0()
+    
+    @cmd2.with_category("VXM commands")
+    def do_VXM_home_LW(self, args: argparse.Namespace) -> None:
+        dc.get_motor("LwNorthSouth").move_ABS0()
+        dc.get_motor("LwPolarizer").move_ABS0()
+
+    @cmd2.with_category("VXM commands")
+    def do_VXM_move(self, args: argparse.Namespace) -> None:
+        ind=self.motors.index(args.motor)
+        dc.get_motor(str(self.motors[ind])).move_ABS(args.position)
+    
+    @cmd2.with_category("VXM commands")
+    def do_VXM_position_rad2(self, args: argparse.Namespace) -> None:
+        dc.get_motor("UpNorthSouth").move_ABS(1300)
+        dc.get_motor("UpEastWest").move_ABS(20200)
+    
+    @cmd2.with_category("VXM commands")
+    def do_VXM_position_pol(self, args: argparse.Namespace) -> None:
+        dc.get_motor("LwNorthSouth").move_ABS(18900)
+
+    polarizer_parser = argparse.ArgumentParser()
+    polarizer_parser.add_argument('degree', type=int, help='degree of the polarizer')
+    @cmd2.with_category("VXM commands")
+    def do_VXM_pol_rotate(self, args: argparse.Namespace) -> None:
+        print(f"ROTATING POLARIZER IN ANGLE {self.polarizer_parser.degree*80}°:STARTING")
+        dc.get_motor("LwPolarizer").move_ABS(self.polarizer_parser.degree)
+        print(f"ROTATING POLARIZER IN ANGLE {self.polarizer_parser.degree*80}°:COMPLETE")
+
+    @cmd2.with_category("VXM commands")
+    def do_zero_pol(self, args: argparse.Namespace) -> None:
+        dc.get_motor("LwPolarizer").move_ABS0()
+
+    @cmd2.with_category("VXM commands")
+    def do_init_SteerCover(self, args: argparse.Namespace) -> None:
+        dc.get_motor("Cover").set_model(1)
+        dc.get_motor("Cover").set_acc(200)
+
+    @cmd2.with_category("VXM commands")
+    def do_open_SteerCover(self, args: argparse.Namespace) -> None:
+        dc.get_motor("Cover").move_BWD(25000)
+
+    @cmd2.with_category("VXM commands")
+    def do_close_SteerCover(self, args: argparse.Namespace) -> None:
+        dc.get_motor("Cover").move_FWD(25500)
+    
+
+
 
 if __name__ == '__main__':
    parser = argparse.ArgumentParser()
-   parser.add_argument('--mode', default='rtu', const='rtu', nargs='?', choices=['rtu', 'tcp'], help='set modbus interface (default: %(default)s)')
-   parser.add_argument('--port', action='store', type=str, help='serial port device (default: /dev/ttyPS2)', default='/dev/ttyPS2')
-   parser.add_argument('--host', action='store', type=str, help='mbusd hostname (default: localhost)', default='localhost')
+   
    args = parser.parse_args()
 
-   app = CLF_app(args.mode,args)
+   app = CLF_app(args)
    app.cmdloop()
 
