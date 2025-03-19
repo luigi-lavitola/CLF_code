@@ -4,25 +4,38 @@ RADIOMETER_WAIT = 2
 
 class Radiometer:
 
-    def __init__(self, port, model, baudrate = 9600):
+    def __init__(self, port, model, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=1):
         self.port = None
         self.serial = None
         self.model = str.upper(model)
+        self.params = locals()
+        self.params.pop('port')
+        self.params.pop('model')
+        self.params.pop('self')
 
-        if isinstance(port, str):
-            self.port = port
-            try:
-                self.serial = serial.Serial(port, baudrate, timeout = RADIOMETER_WAIT)
-                print(f"RADM_MON_{self.model}:CONN:Connected to {self.port} at {baudrate} baud")
-            except serial.SerialException as e:
-                print(f"RADM_MON_{self.model}:Unable to reach the device {self.port}: {e}") 
-                raise e
-        elif isinstance(port, serial.Serial):
-            self.serial = port
-            self.port = self.serial.port
-        else:
-            raise TypeError
-        
+        try:
+            self.serial = serial.Serial(**self.params)
+        except serial.SerialException as e:
+            print(f"RADM_MON_{self.model}:Unable to create serial device: {e}") 
+            raise e
+
+        self.serial.port = port
+
+    def open(self):
+        try:
+            self.serial.open()
+        except serial.SerialException as e:
+            rint(f"RPC:CONN: Unable to open device {self.port}: {e}")        
+
+    @staticmethod
+    def check_open(func):
+        def wrapper(self, *args, **kwargs):
+            if self.serial.is_open is False:
+                self.serial.open()
+            return func(self, *args, **kwargs) 
+        return wrapper
+    
+    @check_open
     def flush_buffers(self):
         try:
             self.serial.reset_input_buffer()
@@ -30,28 +43,25 @@ class Radiometer:
         except Exception as e:
             print(f"RADM_MON_{self.model}:FLUSH_BUFFERS:Unable to flush buffers")
             return -1
-    
-    def set(self, label, value):
-        if self.serial and self.serial.is_open:
-            try:
-                self.flush_buffers()
-                self.serial.write(f"{label} {value}\r".encode())
-            except serial.SerialException as e:
-                print(f"RADM_MON_{self.model}:SET:Unable to send {label} {value}: {e}")
-                return None
-            try:
-                ret = self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
-            except serial.SerialException as e:
-                print(f"RADM_MON_{self.model}:SET:Unable to read result {label} {value}: {e}")
-                return None
 
-            if ret[0] != '?':
-                return ret[1:]
-            else:
-                print(f"RADM_MON_{self.model}:SET:Unable to set {label} {value}")
-                return None
+    @check_open
+    def set(self, label, value):
+        try:
+            self.flush_buffers()
+            self.serial.write(f"{label} {value}\r".encode())
+        except serial.SerialException as e:
+            print(f"RADM_MON_{self.model}:SET:Unable to send {label} {value}: {e}")
+            return None
+        try:
+            ret = self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
+        except serial.SerialException as e:
+            print(f"RADM_MON_{self.model}:SET:Unable to read result {label} {value}: {e}")
+            return None
+
+        if ret[0] != '?':
+            return ret[1:]
         else:
-            print(f"RADM_MON_{self.model}:SET:Serial port is not open")
+            print(f"RADM_MON_{self.model}:SET:Unable to set {label} {value}")
             return None
 
     def read_power(self):
@@ -61,8 +71,11 @@ class Radiometer:
 
 class Radiometer3700(Radiometer):
 
-    def __init__(self, port, baudrate=9600):
-        super().__init__(port, "3700", baudrate)
+    def __init__(self, port, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=1):
+        self.params = locals()
+        self.params.pop('self')
+        self.params.pop('__class__')
+        super().__init__(model='3700', **self.params)
 
     def info(self):
         #self.flush_buffers()
@@ -79,30 +92,27 @@ class Radiometer3700(Radiometer):
         except Exception as e:
             print(f"RADM_MON_{self.model}:RAD_INFO:ERROR:Some problem occurred: {e}")
 
+    @Radiometer.check_open
     def get(self, label):
-        if self.serial and self.serial.is_open:
-            try:
-                self.flush_buffers()
-                self.serial.write(f"{label}\r".encode())
-            except serial.SerialException as e:
-                print(f"RADM_MON_{self.model}:GET:Unable to get {label}: {e}")
-                return None
-            try:
-                ret = self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
-            except serial.SerialException as e:
-                print(f"RADM_MON_{self.model}:SET:Unable to read result {label}: {e}")
-                return None
+        try:
+            self.flush_buffers()
+            self.serial.write(f"{label}\r".encode())
+        except serial.SerialException as e:
+            print(f"RADM_MON_{self.model}:GET:Unable to get {label}: {e}")
+            return None
+        try:
+            ret = self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
+        except serial.SerialException as e:
+            print(f"RADM_MON_{self.model}:SET:Unable to read result {label}: {e}")
+            return None
 
-            if ret:
-                if ret[0] == '?':
-                    print(f"RADM_MON_{self.model}:GET:Unable to get {label}")
-                    return None
-                else:
-                    return ret
-            return None
-        else:
-            print(f"RADM_MON_{self.model}:SET:Serial port is not open")
-            return None
+        if ret:
+            if ret[0] == '?':
+                print(f"RADM_MON_{self.model}:GET:Unable to get {label}")
+                return None
+            else:
+                return ret
+        return None
 
     def setup(self):
         try:
@@ -117,7 +127,6 @@ class Radiometer3700(Radiometer):
         except Exception as e:
             print(f"RADM_MON_{self.model}:SET_UP:ERROR:Some problem occurred: {e}")
 
-    
     def set_range(self, range):
         self.flush_buffers()
         self.set("RA", range)
@@ -125,33 +134,33 @@ class Radiometer3700(Radiometer):
 
 class RadiometerOphir(Radiometer):
 
-    def __init__(self, port, baudrate=9600):
-        super().__init__(port, "OPHIR", baudrate)
+    def __init__(self, port, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=1):
+        self.params = locals()
+        self.params.pop('self')
+        self.params.pop('__class__')
+        super().__init__(model="OPHIR", **self.params)
 
+    @Radiometer.check_open
     def get(self, label):
-        if self.serial and self.serial.is_open:
-            try:
-                self.flush_buffers()
-                self.serial.write(f"{label} ?\r".encode())
-            except serial.SerialException as e:
-                print(f"RADM_MON_{self.model}:GET:Unable to get {label}: {e}")
-                return None
-            try:
-                ret = self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
-            except serial.SerialException as e:
-                print(f"RADM_MON_{self.model}:SET:Unable to read result {label}: {e}")
-                return None
+        try:
+            self.flush_buffers()
+            self.serial.write(f"{label} ?\r".encode())
+        except serial.SerialException as e:
+            print(f"RADM_MON_{self.model}:GET:Unable to get {label}: {e}")
+            return None
+        try:
+            ret = self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
+        except serial.SerialException as e:
+            print(f"RADM_MON_{self.model}:SET:Unable to read result {label}: {e}")
+            return None
 
-            if ret:
-                if ret[0] == '?':
-                    print(f"RADM_MON_{self.model}:GET:Unable to get {label}")
-                    return None
-                elif ret[0] == '*':
-                    return ret[1:]
-            return None
-        else:
-            print(f"RADM_MON_{self.model}:SET:Serial port is not open")
-            return None
+        if ret:
+            if ret[0] == '?':
+                print(f"RADM_MON_{self.model}:GET:Unable to get {label}")
+                return None
+            elif ret[0] == '*':
+                return ret[1:]
+        return None
 
     def info(self):
         self.flush_buffers()

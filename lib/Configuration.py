@@ -37,7 +37,7 @@ class Configuration:
         return self.ports.get(port, None)
     
     def __repr__(self):
-        return f'ports: {self.ports}\nmotors: {self.motors}\noutlets: {self.outlets}'
+        return f'ports: {self.ports}\nmotors: {self.motors}\noutlets: {self.outlets}\nradiometers: {self.radiometers}'
 
 
 if __name__ == "__main__":

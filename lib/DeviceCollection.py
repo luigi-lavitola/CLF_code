@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from lib.RPC import RPCDevice
 from lib.VXM import VXM
 from lib.Radiometer import Radiometer3700, RadiometerOphir
+from lib.Centurion import Centurion
 from lib.FPGADevice import FPGADevice
 
 class DeviceCollection:
@@ -14,54 +15,31 @@ class DeviceCollection:
         self.motors = {}
         self.radiometers = {}
         self.fpga = FPGADevice("/dev/runcontrol")
+        self.laser = Centurion("/dev/ttyr01")
 
     def init(self, cfg):
         # outlets
         for oname, oparams in cfg.outlets.items():
             port_params = cfg.get_port_params(oparams['port'])
-            self.add_outlet(oparams['id'], oname,
-                port=port_params['port'],
-                speed=port_params['speed'],
-                bytesize=port_params['bytesize'],
-                parity=port_params['parity'],
-                stopbits=port_params['stopbits'],
-                timeout=port_params['timeout']
-            )
+            self.add_outlet(oparams['id'], oname, **port_params)
 
         # motors
         for mname, mparams in cfg.motors.items():
             port_params = cfg.get_port_params(mparams['port'])
-            self.add_motor(mparams['id'], mname,
-                port=port_params['port'],
-                speed=port_params['speed'],
-                bytesize=port_params['bytesize'],
-                parity=port_params['parity'],
-                stopbits=port_params['stopbits'],
-                timeout=port_params['timeout']
-            )
+            self.add_motor(mparams['id'], mname, **port_params)
 
         # radiometers 
         for rname, rparams in cfg.radiometers.items():
             port_params = cfg.get_port_params(rparams['port'])
-            self.add_radiometer(rname, rparams['model'],
-                port=port_params['port'],
-                speed=port_params['speed'],
-                bytesize=port_params['bytesize'],
-                parity=port_params['parity'],
-                stopbits=port_params['stopbits'],
-                timeout=port_params['timeout']
-            )
+            self.add_radiometer(rname, rparams['model'], **port_params)
 
-    def add_outlet(self, id, name, port, speed=115200, bytesize=8, parity='N', stopbits=1, timeout=1):
+    def add_outlet(self, id, name, port, baudrate=115200, bytesize=8, parity='N', stopbits=1, timeout=1):
         if(self.serials.get(port, None) == None):
-            s = serial.Serial(
-                port=port, 
-                baudrate=speed, 
-                bytesize=bytesize, 
-                parity=parity,
-                stopbits = stopbits,
-                timeout = timeout)
-            self.serials[port] = RPCDevice(s)
+            params = locals()
+            params.pop('self')
+            params.pop('id')
+            params.pop('name')
+            self.serials[port] = RPCDevice(**params)
 
         rpc = self.serials[port]
         self.outlets[name] = rpc.add_outlet(id, name)
@@ -69,16 +47,13 @@ class DeviceCollection:
     def get_outlet(self, name):
         return self.outlets[name]
 
-    def add_motor(self, id, name, port, speed=115200, bytesize=8, parity='N', stopbits=1, timeout=1):
+    def add_motor(self, id, name, port, baudrate=115200, bytesize=8, parity='N', stopbits=1, timeout=1):
         if(self.serials.get(port, None) == None):
-            s = serial.Serial(
-                port=port, 
-                baudrate=speed, 
-                bytesize=bytesize, 
-                parity=parity,
-                stopbits = stopbits,
-                timeout = timeout)
-            self.serials[port] = VXM(s)
+            params = locals()
+            params.pop('self')
+            params.pop('id')
+            params.pop('name')
+            self.serials[port] = VXM(**params)
 
         vxm = self.serials[port]
         self.motors[name] = vxm.add_motor(id, name)
@@ -86,33 +61,21 @@ class DeviceCollection:
     def get_motor(self, name):
         return self.motors[name]
 
-    def add_radiometer(self, name, model, port, speed=115200, bytesize=8, parity='N', stopbits=1, timeout=1):
+    def add_radiometer(self, name, model, port, baudrate=115200, bytesize=8, parity='N', stopbits=1, timeout=1):
         if(self.serials.get(port, None) == None):
-            s = serial.Serial(
-                port=port, 
-                baudrate=speed, 
-                bytesize=bytesize, 
-                parity=parity,
-                stopbits = stopbits,
-                timeout = timeout)
+            params = locals()
+            params.pop('self')
+            params.pop('name')
+            params.pop('model')
             if model == "3700":
-                self.serials[port] = Radiometer3700(s)
+                self.serials[port] = Radiometer3700(**params)
             elif str.lower(model) == "ophir":
-                self.serials[port] = RadiometerOphir(s)
+                self.serials[port] = RadiometerOphir(**params)
+
+        self.radiometers[name] = self.serials[port]
 
     def get_radiometer(self, name):
-        return self.radiometer[name]
+        return self.radiometers[name]
 
     def __repr__(self):
         return f'{self.outlets}'
-
-if __name__ == "__main__":
-    dc = DeviceCollection()
-
-    dc.add_outlet(0, "PC", "/dev/ttyUSB0")
-    dc.add_outlet(1, "RAMAN1", "/dev/ttyUSB0")
-    print(dc)
-
-    dc.get_outlet("PC").on()
-    dc.get_outlet("RAMAN1").on()
-

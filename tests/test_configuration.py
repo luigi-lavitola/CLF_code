@@ -8,30 +8,31 @@ cfg = Configuration()
 cfg.read()
 
 dc = DeviceCollection()
+dc.init(cfg)
 
-# outlets
-for oname, oparams in cfg.outlets.items():
-    port_params = cfg.get_port_params(oparams['port'])
-    dc.add_outlet(oparams['id'], oname,
-           port=port_params['port'],
-           speed=port_params['speed'],
-           bytesize=port_params['bytesize'],
-           parity=port_params['parity'],
-           stopbits=port_params['stopbits'],
-           timeout=port_params['timeout']
-    )
+ol = dc.get_outlet("laser")
+ol.on()
+print(ol.status())
 
-# motors
-for mname, mparams in cfg.motors.items():
-    port_params = cfg.get_port_params(mparams['port'])
-    dc.add_motor(mparams['id'], mname,
-           port=port_params['port'],
-           speed=port_params['speed'],
-           bytesize=port_params['bytesize'],
-           parity=port_params['parity'],
-           stopbits=port_params['stopbits'],
-           timeout=port_params['timeout']
-    )
+dc.laser.comm_test()
 
-dc.get_outlet("RAMAN2").on()
-dc.get_motor("Cover").move_ABS(0)
+ol.off()
+print(ol.status())
+
+#rm_outlet = dc.get_outlet("radiometer")
+#print(rm_outlet.status())
+#rm_outlet.on()
+
+#rm = dc.get_radiometer("Rad1")
+#rm.info()
+#print(f'TG = {rm.get("TG")}')
+#rm.set("TG", 3)
+#print(f'TG = {rm.get("TG")}')
+
+vxm_outlet = dc.get_outlet("VXM")
+print(vxm_outlet.status())
+vxm_outlet.on()
+
+mt = dc.get_motor("LwNorthSouth")
+print(mt.is_connected())
+
