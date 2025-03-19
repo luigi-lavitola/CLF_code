@@ -1,13 +1,9 @@
 import serial
-import time
 import re
-
-# Costanti
-RPC_RETURN = 255
 
 class RPCDevice:
 
-    def __init__(self, port, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=1):
+    def __init__(self, port, baudrate=9600, bytesize=8, parity='N', stopbits=1, timeout=2):
         self.outlets = {}
         self.port = port
         self.serial = None
@@ -50,42 +46,60 @@ class RPCDevice:
             return wrapper
     
         @check_open
-        def send_command(self, command):
-            self.serial.flush()
-            self.serial.write(f"{command}\r".encode())
-            self.serial.read_until()
-            self.serial.write(b"y\r")  # confirm command 
-            self.serial.read_until()
-
-        @check_open
-        def read_response(self):
-            response = self.serial.read(RPC_RETURN).decode(errors='ignore').strip()
-            return response
+        def wait_prompt(self):
+            self.serial.write("\n\r".encode())
+            n = 0
+            while True:
+                for line in self.serial.readlines():
+                    if line.decode().startswith("RPC>"):
+                        return
+                n += 1
+                if n % 5 == 0:
+                    self.serial.write("\n\r".encode())
 
         @check_open
         def on(self):
-            self.serial.write("\n\r".encode())
-            self.serial.flush()
-            self.send_command(f"on {self.id}")
-            if self.status() == 1:
-                return True
+            for _ in range(5):
+                self.serial.reset_output_buffer()
+                self.serial.reset_input_buffer()
+                self.wait_prompt()
+                self.serial.write(f"on {self.id}\r".encode())
+                self.serial.flush()
+                found = False
+                while not found:
+                    for line in self.serial.readlines():
+                        if line.decode().startswith("Turn On"):
+                            found = True
+                            break
+                self.serial.write(b"y\r")  # confirm command 
+                if self.status() == 1:
+                    return True
             print(f"RPC:ON:ERROR:Outlet {self.id} did not turn ON.")
             return False
 
         @check_open
         def off(self):
-            self.serial.write("\n\r".encode())
-            self.serial.flush()
-            self.send_command(f"off {self.id}")
-            if self.status() == 0:
-                return True
-            print(f"RPC:OFF:ERROR:Outlet {self.id} did not turn OFF.")
+            for _ in range(5):
+                self.serial.reset_output_buffer()
+                self.serial.reset_input_buffer()
+                self.wait_prompt()
+                self.serial.write(f"off {self.id}\r".encode())
+                self.serial.flush()
+                found = False
+                while not found:
+                    for line in self.serial.readlines():
+                        if line.decode().startswith("Turn Off"):
+                            found = True
+                            break
+                self.serial.write(b"y\r")  # confirm command 
+                if self.status() == 0:
+                    return True
+            print(f"RPC:ON:ERROR:Outlet {self.id} did not turn OFF.")
             return False
 
         @check_open
         def status(self):
-            self.serial.write("\n\r".encode())
-            self.serial.flush()
+            self.wait_prompt()
             self.serial.write(b"\r")
             map = {}
             for line in self.serial.readlines():
