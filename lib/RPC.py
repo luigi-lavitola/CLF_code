@@ -64,6 +64,7 @@ class RPCDevice:
 
         @check_open
         def on(self):
+            self.serial.write("\n\r".encode())
             self.serial.flush()
             self.send_command(f"on {self.id}")
             if self.status() == 1:
@@ -73,6 +74,7 @@ class RPCDevice:
 
         @check_open
         def off(self):
+            self.serial.write("\n\r".encode())
             self.serial.flush()
             self.send_command(f"off {self.id}")
             if self.status() == 0:
@@ -82,6 +84,7 @@ class RPCDevice:
 
         @check_open
         def status(self):
+            self.serial.write("\n\r".encode())
             self.serial.flush()
             self.serial.write(b"\r")
             map = {}
