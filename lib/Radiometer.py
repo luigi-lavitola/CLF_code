@@ -8,6 +8,7 @@ class Radiometer:
         self.port = None
         self.serial = None
         self.model = str.upper(model)
+        self.ready = False
         self.params = locals()
         self.params.pop('port')
         self.params.pop('model')
@@ -26,6 +27,9 @@ class Radiometer:
             self.serial.open()
         except serial.SerialException as e:
             rint(f"RPC:CONN: Unable to open device {self.port}: {e}")        
+
+    def is_ready(self):
+        return self.ready
 
     @staticmethod
     def check_open(func):
@@ -63,10 +67,6 @@ class Radiometer:
         else:
             print(f"RADM_MON_{self.model}:SET:Unable to set {label} {value}")
             return None
-
-    def read_power(self):
-        # 10-3 Joule
-        None
 
 
 class Radiometer3700(Radiometer):
@@ -127,10 +127,19 @@ class Radiometer3700(Radiometer):
         except Exception as e:
             print(f"RADM_MON_{self.model}:SET_UP:ERROR:Some problem occurred: {e}")
 
+        print(f"RADM_MON_{self.model}:SET_UP done")
+        self.ready = True
+
     def set_range(self, range):
         self.flush_buffers()
         self.set("RA", range)
-        
+
+    def read_power(self):
+        if (self.ready == True):
+            # 10-3 Joule unit
+            return self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
+        else:
+            print(f"RADM_MON_{self.model}:ERROR Radiometer not ready")
 
 class RadiometerOphir(Radiometer):
 
