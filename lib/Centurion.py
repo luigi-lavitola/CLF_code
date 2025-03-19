@@ -91,10 +91,8 @@ class Centurion:
         time.sleep(0.1)
         command = "$HVERS ?\r"
         response = self.send_command(command)
-        
         #response = self.read_response()
         print(f"CENT:COMM_TEST:received:{response}")
-        
         if response.startswith("$HVERS"):
             print("CENT:COMM_TEST:PASSED OK!")
             return 0
@@ -103,12 +101,9 @@ class Centurion:
             return -2
 
     def set_parameter(self, parameter, value):
-
         parameter_set = self.send_command(f"{parameter} {value}")
-
         if parameter_set:
             preturn = parameter_set.split()
-
             if len(preturn) == 2 and preturn[0] == f"{parameter}":
                 print(f"CENT:PARAMETER_SET:Parameter {preturn[0]}, value set: {preturn[1]}")
                 return 0
@@ -117,12 +112,9 @@ class Centurion:
                 return -1
 
     def check_parameter(self, parameter):
-
         parameter_check = self.send_command(f"{parameter} ?")
-
         if parameter_check:
             preturn = parameter_check.split()
-
             if len(preturn) == 2 and preturn[0] == f"{parameter}":
                 print(f"CENT:PARAMETER_CHECK:Parameter {preturn[0]}, value checked: {preturn[1]}")
                 return preturn[1]
@@ -133,7 +125,6 @@ class Centurion:
     def set_mode(self, freq = 100, diode = 1, qson= 0, qswitch = 1, dtrig = 1, qstrig = 1, dpw = 100, qsdelay = 145):
         
         try:
-
             print("CENT:SET_MODE:Setting up Centurion Laser...")
             print("CENT:SET_MODE:Going Standby...")
             self.send_command("$STANDBY")
@@ -153,16 +144,13 @@ class Centurion:
             self.set_parameter("$DPW", dpw)
             #setting delay for Q-switch (relevant only for internal trigger)
             self.set_parameter("$QSDEL", qsdelay)
-
             print("CENT:SET_MODE:Set up complete")
             return 0 
-
         except Exception as e:
             print(f"CENT:SET_MODE:ERROR:Some problem occurred:{e}")
             return -1 
         
     def check_mode(self):
-
         self.flush_buffers()
         try:
             print("CENT:CHECK_MODE:Checking values:")
@@ -180,42 +168,32 @@ class Centurion:
             return -2
 
     def read_status(self):
-
         self.flush_buffers()
         status = self.send_command("$STATUS ?")
-        
         if status:
             parts = status.split()
-
             if len(parts) == 6 and parts[0] == '$STATUS':
                 try:
                     self.state = int(parts[1], 16) 
-
                 except ValueError:
                     print(f"CENT:READ_STATUS:ERROR:Bytes received: {status}")
                     return -1
-
             else:
                 print(f"CENT:READ_STATUS:ERROR:WRONG STRING RECEIVED:Bytes received: {status}")  
                 return -2  
 
     def read_bytes(self):
-
         self.flush_buffers()
         status = self.send_command("$STATUS ?")
-        
         if status:
             parts = status.split()
-
             if len(parts) == 6 and parts[0] == '$STATUS':
                 try:
                     self.sbyte = int(parts[2], 16) 
                     self.hbyte1 =  int(parts[3], 16) 
                     self.hbyte2 = int(parts[4], 16) 
                     self.hbyte3 = int(parts[5], 16)
-
                     print(f"CENT:READ_BYTES:{self.sbyte}, {self.hbyte1}, {self.hbyte2}, {self.hbyte3}")
-                    
                 except ValueError:
                     print(f"CENT:READ_BYTES:ERROR:Bytes received: {status}")
                     return -1
@@ -234,11 +212,20 @@ class Centurion:
             print(f"CENT:READ_BYTES:User shots counter:{response}")
 
         return 0     
+
+    def standby(self):
+        self.flush_buffers()
+        try:
+            print("CENT:STANDBY:Going Standby...")
+            standby = self.send_command('$STAND')
+            if standby:
+                print(f"CENT:STANDBY:Standby:{standby}")
+        except Exception as e:
+            print(f"CENT:STANDBY:ERROR:Some problem occurred: {e}")
+            return -1
           
     def warmup(self):
-
         self.flush_buffers()
-
         try:
             print("CENT:WARMUP:Going Standby...")
             standby = self.send_command('$STAND')
@@ -257,16 +244,12 @@ class Centurion:
 
             self.read_bytes()
             return 0 
-
-        
         except Exception as e:
             print(f"CENT:WARMUP:ERROR:Some problem occurred: {e}")
             return -1
 
     def sleep(self):
-
         self.flush_buffers()
-
         try:
             print("CENT:SLEEP:Sending Centurion to sleep")
 
@@ -275,15 +258,12 @@ class Centurion:
                 print(f"CENT:SLEEP:Centurion sent to sleep: {sleep}")
                 print('ZZZZ...ZZZZ...ZZZZ...')
             return 0
-
         except Exception as e:
             print(f"CENT:SLEEP:ERROR:Centurion doesn't want to sleep")
             return -1
             
     def check_temps(self):
-
         self.flush_buffers()
-
         temps = self.send_command("$TEMPS ?")
         if temps: 
             parts = temps.split()
@@ -305,43 +285,33 @@ class Centurion:
                 return -2        
         
     def check_qs_delay(self):
-
         self.flush_buffers()
         self.check_parameter("$QSDELAY")
    
     def check_pwdth(self):
-
         self.pulse_wdth = -99
         self.flush_buffers()
 
         try: 
-
             pwdth= self.send_command("$DPW ?")
             if pwdth:
-
                 parts = pwdth.split()
                 if parts == 2 and parts[0]== 'DPW':
                     try:
-                        
                         self.pulse_wdth = parts[1]
                         print(f"CENT:CHECK_PULSE_WIDTH:Pulse width: {self.pulse_wdth}")
                         return(self.pulse_wdth)
-
                     except ValueError:
-
                         print(f"CENT:CHECK_PULSE_WIDTH:ERROR:Bytes received: {parts}")
                         return -1
-
         except Exception as e:
             print(f"CENT:CHECK_PULSE_WIDTH:ERROR:Some problem occurred: {e}")
 
     def set_pwdth(self, pwd):
-
         self.flush_buffers()
         self.set_parameter("$DPW", pwd)
 
     def fire(self):
-
         self.flush_buffers()
         status = self.read_status()
 
