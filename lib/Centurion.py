@@ -12,9 +12,13 @@ BUFSIZE = 255         #input, output buffer size */
 
 class Centurion:
 
-    def __init__(self, port, baudrate = 57600, timeout = 2, parity = serial.PARITY_EVEN, string_return = 255):
+    def __init__(self, port, baudrate=57600, parity=serial.PARITY_EVEN, timeout=2, string_return=255):
         self.port = port
         self.serial = None
+        self.params = locals()
+        self.params.pop('port')
+        self.params.pop('self')
+        self.params.pop('string_return')
         self.string_return = string_return
 
         #const
@@ -29,76 +33,64 @@ class Centurion:
         self.dump_temp = -99
         self.plate_temp = -99 
 
-        if isinstance(port, str):
-            try:
-                self.serial = serial.Serial(port=port, baudrate=baudrate, parity=parity, timeout=timeout)
-                print(f"CENT:CONN:Connected to {port} at {baudrate} baud")
-            except serial.SerialException as e:
-                print(f"CENT:CONN:Unable to reach the device {port}: {e}")
-                raise e
-        elif isinstance(port, serial.Serial):
-            self.serial = port
-            self.port = self.serial.port
-        else:
-            raise TypeError
+        try:
+            self.serial = serial.Serial(**self.params)
+        except serial.SerialException as e:
+             print(f"CENT:CONN:Unable to create serial device: {e}: {e}")
 
+        self.serial.port = port
+
+    def open(self):
+        try:
+            self.serial.open()
+        except serial.SerialException as e:
+            print(f"CENT:CONN:Unable to open device {self.port}: {e}")        
+    
+    def check_open(func):
+        def wrapper(self, *args, **kwargs):
+            if self.serial.is_open is False:
+                self.serial.open()
+            return func(self, *args, **kwargs)
+        return wrapper        
+
+    @check_open
     def read_response(self):
-           
-        if self.serial and self.serial.is_open:
-            try:
-                
-                response = str(self.serial.read(255).decode())
-                print(response)
-                return response
-            except serial.SerialException: 
-                print(f"CENT:READ_R:ERROR:Unable to read response")
-                return -1
-        return ""
+        try:
+            response = str(self.serial.read(255).decode())
+            print(response)
+            return response
+        except serial.SerialException: 
+            print(f"CENT:READ_R:ERROR:Unable to read response")
+            return -1
 
+    @check_open
     def send_command(self, command):
-
-        if self.serial and self.serial.is_open:
-            try:
-                self.serial.flush()
-                
-                self.serial.write(f"{command}\r".encode())
-                time.sleep(0.5)
-
-                response = self.read_response()
-                
-                return response
-
-            except serial.SerialException as e:
-                print(f"CENT:SEND_COMM:Unable to send {command} command: {e}")
-                return -1
-        else:
-            print(f"CENT:SEND_COMM:Serial port is not open")
-            return -2
+        try:
+            self.serial.flush()
+            self.serial.write(f"{command}\r".encode())
+            time.sleep(0.5)
+            response = self.read_response()
+            return response
+        except serial.SerialException as e:
+            print(f"CENT:SEND_COMM:Unable to send {command} command: {e}")
+            return -1
         
+    @check_open
     def flush_buffers(self):
-
         try:
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
             time.sleep(0.1)
             return 0
-      
         except Exception as e:
             print(f"CENT:FLUSH_BUFFERS:Unable to flush buffers")
             return -1
 
     def comm_test(self):
-
-        if not self.serial_port or not self.serial_port.is_open:
-            print("CENT:COMM_TEST: Serial port not initialized")
-            return -1
-        
         self.flush_buffers()
         time.sleep(0.1)
-        
         command = "$HVERS ?\r"
         response = self.send_command(command)
-        
         
         #response = self.read_response()
         print(f"CENT:COMM_TEST:received:{response}")
