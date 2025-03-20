@@ -52,10 +52,12 @@ class FPGADevice:
         self.iomap = {}
         self.iomap["laser_start"] = FPGAIO(0x3, 0)
         self.iomap["laser_en"] = FPGAIO(0x3, 1)
-        self.iomap["norain"] = FPGAIO(0x16, 0)
-        self.iomap["rain"] = FPGAIO(0x16, 1)
-        self.iomap["cover_closed"] = FPGAIO(0x16, 2, inverted=True)
-        self.iomap["cover_open"] = FPGAIO(0x16, 3, inverted=True)
+        self.iomap["cover_raman_closed"] = FPGAIO(0x16, 0)
+        self.iomap["cover_raman_open"] = FPGAIO(0x16, 1)
+        self.iomap["cover_steer_closed"] = FPGAIO(0x16, 2, inverted=True)
+        self.iomap["cover_steer_open"] = FPGAIO(0x16, 3, inverted=True)
+        self.iomap["rain"] = FPGAIO(0x16, 4)
+        self.iomap["norain"] = FPGAIO(0x16, 5)
         self.iomap["inverter"] = FPGAIO(0x17, 0)
         self.iomap["flipper_steer"] = FPGAIO(0x17, 1)
         self.iomap["flipper_raman"] = FPGAIO(0x17, 2)
@@ -91,7 +93,11 @@ class FPGADevice:
 
     def write_register(self, name, value):
         addr = self.regmap[name].get_addr()
-        self.write_address(addr, value)
+        width = self.regmap[name].get_width()
+        i = 0
+        while i < width:
+            self.write_address(addr+i, (value & (0xFFFF << (i*16))) >> (i*16))
+            i = i + 1
 
     def read_bit(self, name):
         return self.read_dio(name) 
@@ -115,7 +121,7 @@ class FPGADevice:
             raise NameError
         addr = self.iomap[name].get_addr()
         bit = self.iomap[name].get_bit()
-        value = bool(self.read_address(addr))
+        value = self.read_address(addr)
         if b:
             value = value | (1 << bit)
         else:
