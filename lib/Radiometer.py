@@ -26,7 +26,7 @@ class Radiometer:
         try:
             self.serial.open()
         except serial.SerialException as e:
-            rint(f"RPC:CONN: Unable to open device {self.port}: {e}")        
+            print(f"RPC:CONN: Unable to open device {self.port}: {e}")        
 
     def is_ready(self):
         return self.ready
