@@ -21,7 +21,7 @@ Rad_mon_1:
   bytesize: 8
   parity: 'N'
   stopbits: 1
-  timeout: 1
+  timeout: 0.2
 
 Motor_calib:
   port: "/dev/ttyr03"
