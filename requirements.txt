@@ -1,5 +1,7 @@
+cmd2==2.5.11
 ieee754==0.11
+numpy==1.24.2
+paramiko==2.12.0
 pyftdi==0.56.0
 pyserial==3.5
 PyYAML==6.0.2
-cmd2==2.5.11
