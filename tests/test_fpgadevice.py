@@ -2,6 +2,7 @@
 
 import sys
 import os
+import threading
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from lib.FPGADevice import FPGADevice
 
@@ -26,11 +27,11 @@ print(fp.read_dio("rain"))
 print("6. read DIO norain")
 print(fp.read_dio("norain"))
 
-print("6. read DIO cover_closed")
-print(fp.read_dio("cover_closed"))
+print("6. read DIO cover_raman_closed")
+print(fp.read_dio("cover_raman_closed"))
 
-print("7. read DIO cover_open")
-print(fp.read_dio("cover_open"))
+print("7. read DIO cover_raman_open")
+print(fp.read_dio("cover_raman_open"))
 
 print("8. read DIO inverter")
 print(fp.read_dio("inverter"))
@@ -40,5 +41,27 @@ fp.write_dio("inverter", 1)
 
 print("10. read pps_ok flag")
 print(fp.read_bit("pps_ok"))
+
+print("9. turn off DIO inverter")
+fp.write_dio("inverter", 0)
+
+print("test mutual exclusion")
+
+def func():
+    for _ in range(100):
+        print(f'thread_id: {threading.get_ident()} - {hex(fp.read_register("unixtime"))}')
+
+thr1 = threading.Thread(target=func)
+thr2 = threading.Thread(target=func)
+
+print("- start thread #1")
+thr1.start()
+print("- start thread #2")
+thr2.start()
+
+thr1.join()
+print("- end thread #1")
+thr2.join()
+print("- end thread #2")
 
 fp.close()

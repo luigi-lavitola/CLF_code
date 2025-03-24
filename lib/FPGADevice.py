@@ -1,6 +1,7 @@
 
 import serial
 import time
+from threading import Lock
 
 class FPGADevice:
 
@@ -21,6 +22,7 @@ class FPGADevice:
         self.port = port
         self.baudrate = baudrate
         self.serial = None
+        self.mutex = Lock() 
 
         try:
             self.serial = serial.Serial(self.port, self.baudrate, timeout = 2)
@@ -71,10 +73,20 @@ class FPGADevice:
     def close(self):
         self.serial.close()
 
+    def critical_section(func):
+        def wrapper(self, *args, **kwargs):
+            self.mutex.acquire()
+            ret = func(self, *args, **kwargs)
+            self.mutex.release()
+            return ret
+        return wrapper
+
+    @critical_section
     def read_address(self, addr):
         self.serial.write(f"{str(hex(addr))[2:]}\n".encode())
         return int(self.serial.read_until('\r'.encode()).decode()[:-1], 16)
 
+    @critical_section
     def write_address(self, addr, value):
         self.serial.write(f"{str(hex(addr))[2:]} {str(hex(value))[2:]}\n".encode())
         time.sleep(0.1)
