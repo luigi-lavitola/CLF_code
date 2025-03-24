@@ -3,6 +3,7 @@
 import sys
 import os
 import threading
+import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from lib.FPGADevice import FPGADevice
 
@@ -50,6 +51,7 @@ print("test mutual exclusion")
 def func():
     for _ in range(100):
         print(f'thread_id: {threading.get_ident()} - {hex(fp.read_register("unixtime"))}')
+        time.sleep(0.01)
 
 thr1 = threading.Thread(target=func)
 thr2 = threading.Thread(target=func)
