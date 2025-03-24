@@ -7,7 +7,7 @@ from lib.RunScheduler import RunScheduler
 
 
 
-file_path = "docs/ALLFDCalender.txt"  # Percorso del file calendario
+file_path = "docs/ALLFDCalendar.txt"  # Percorso del file calendario
 scheduler = RunScheduler(file_path)
 
 # Ottenere i run per la data odierna
