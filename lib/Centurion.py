@@ -182,6 +182,14 @@ class Centurion:
                 print(f"CENT:READ_STATUS:ERROR:WRONG STRING RECEIVED:Bytes received: {status}")  
                 return -2  
 
+    def status(self):
+        self.flush_buffers()
+        status = self.send_command("$STATUS ?")
+        if status:
+            parts = status.split()
+            if len(parts) == 6 and parts[0] == '$STATUS':
+                return int(parts[1], 16)
+
     def read_bytes(self):
         self.flush_buffers()
         status = self.send_command("$STATUS ?")
@@ -283,6 +291,17 @@ class Centurion:
             else:
                 print(f"CENT:CHECK_TEMPS:ERROR:Bytes received: {temps}")  
                 return -2        
+
+    def temperature(self):
+        self.flush_buffers()
+        temps = self.send_command("$TEMPS ?")
+        if temps:
+            parts = temps.split()
+            if len(parts) == 4 and parts[0] == '$TEMPS':
+                return int(parts[1]), int(parts[2]), int(parts[3])
+
+    def fire_auth(self):
+        return self.status() == 0x7E
         
     def check_qs_delay(self):
         self.flush_buffers()
