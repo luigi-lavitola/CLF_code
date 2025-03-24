@@ -54,17 +54,27 @@ class RunCalendar:
         ttable = []
         if entry.raman_run is True:
             ttable.append(RunEntry(entry.start_date - timedelta(minutes=30), runtype="raman"))
+            ttable.append(RunEntry(datetime(
+                year=entry.end_date.year, 
+                month=entry.end_date.month,
+                day=entry.end_date.day,
+                hour=4,
+                minute=30), runtype="raman")
+            )
             ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype="raman"))
 
         # find first valid time 
-        while entry.start_date.minute not in [15, 30, 45]:
+        #while entry.start_date.minute not in [15, 30, 45]:
+        while entry.start_date.minute not in [5, 20, 35, 50]:
             entry.start_date += timedelta(minutes=1)
 
         start_time = entry.start_date
         while start_time <= entry.end_date:
-            if entry.raman_run is True and start_time.strftime("%H:%M") == "04:30":
-                start_time += timedelta(minutes=15)
-                continue
+            #if entry.raman_run is True and start_time.strftime("%H:%M") == "04:30":
+            if entry.raman_run is True:
+                if start_time.strftime("%H:%M") == "04:20" or start_time.strftime("%H:%M") == "04:35":
+                    start_time += timedelta(minutes=15)
+                    continue
             ttable.append(RunEntry(start_time, runtype="fd"))
             start_time += timedelta(minutes=15)
 
