@@ -197,7 +197,20 @@ class RadiometerOphir(Radiometer):
             return -1
 
     def setup(self):
-        self.flush_buffers()
-        self.set("DU", 1)
+        try:
+            self.flush_buffers()
+            self.set("DU", 1)
+        except Exception as e:
+            print(f"RADM_MON_{self.model}:SET_UP:ERROR:Some problem occurred: {e}")
+
+        print(f"RADM_MON_{self.model}:SET_UP done")
+        self.ready = True
+
+    def read_power(self):
+        if (self.ready == True):
+            # 10-3 Joule unit
+            return self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
+        else:
+            print(f"RADM_MON_{self.model}:ERROR Radiometer not ready")
     
 
