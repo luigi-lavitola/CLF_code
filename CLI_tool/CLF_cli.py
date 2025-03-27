@@ -8,6 +8,7 @@ import sys
 import cmd2
 import functools
 import getpass
+import time
 import numpy as np
 from cmd2.table_creator import (
     Column,
@@ -41,8 +42,8 @@ class CLF_app(cmd2.Cmd):
         del cmd2.Cmd.do_shortcuts
 
 
-        self.prompt = cmd2.ansi.style("clf> ", fg=cmd2.fg.green)
-        self.intro = cmd2.ansi.style("Welcome to the CLF CLI, type help for the list of commands", fg=cmd2.fg.red)
+        self.prompt = cmd2.ansi.style("clf> ")
+        self.intro = cmd2.ansi.style("Welcome to the CLF CLI, type help for the list of commands")
 
         cmd2.categorize(
             (cmd2.Cmd.do_alias, cmd2.Cmd.do_help, cmd2.Cmd.do_history, cmd2.Cmd.do_quit, cmd2.Cmd.do_set, cmd2.Cmd.do_run_script),
@@ -120,11 +121,11 @@ class CLF_app(cmd2.Cmd):
     def do_open_Raman_cover(self, args: argparse.Namespace) -> None:
         dc.get_outlet("RAMAN_inst").on()
         time.sleep(1)
-        dc.get_outlet("Raman_cover").on()
+        dc.get_outlet("RAMAN_cover").on()
 
     @cmd2.with_category("RPC command")
     def do_close_Raman_cover(self, args: argparse.Namespace) -> None:
-        dc.get_outlet("Raman_cover").off()
+        dc.get_outlet("RAMAN_cover").off()
 
 
     ######### LASER FUNCTIONS ##################
@@ -261,6 +262,195 @@ class CLF_app(cmd2.Cmd):
     def do_close_SteerCover(self, args: argparse.Namespace) -> None:
         dc.get_motor("Cover").move_FWD(25500)
     
+
+
+    ######### RunControl FUNCTIONS ##################
+    @cmd2.with_category("RunControl commands")
+    def do_PowerOn(self, args: argparse.Namespace) -> None:
+        print("turn on inverter... ")
+        dc.fpga.write_dio('inverter', True)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_PowerOff(self, args: argparse.Namespace) -> None:
+        print("turn off inverter... ")
+        dc.fpga.write_dio('inverter', False)
+        print("done")
+    
+
+
+    rc_parser = argparse.ArgumentParser()
+    rc_parser.add_argument('status', type=str, help='status of the bit on off', choices=['on','off'])
+    @cmd2.with_argparser(rc_parser)
+    @cmd2.with_category("RunControl commands")
+    def do_Raman_beam(self, args: argparse.Namespace) -> None:
+        if args.status == 'on':
+            print("turn on Raman beam... ")
+            dc.fpga.write_dio('flipper_raman', True)
+            print("done")
+        else:
+            print("turn off Raman beam... ")
+            dc.fpga.write_dio('flipper_raman', False)
+            print("done")
+
+    @cmd2.with_category("RunControl commands")
+    def do_check_rain(self, args: argparse.Namespace) -> None:
+        print("check rain... ")
+        if dc.fpga.read_dio('rain') and (not dc.fpga.read_dio('norain')):
+            print("It's raining")   
+        else:
+            print("It's not raining")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_check_pps(self, args: argparse.Namespace) -> None:
+        print("check pps... ")
+        if dc.fpga.read_dio('pps_ok'):
+            print("PPS is ok")   
+        else:
+            print("PPS is not ok")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_check_jc_lock(self, args: argparse.Namespace) -> None:
+        print("check JC lock... ")
+        if dc.fpga.read_dio('jc_lock'):
+            print("JC is locked")   
+        else:
+            print("JC is not locked")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_check_vcxo_lock(self, args: argparse.Namespace) -> None:
+        print("check VCXO lock... ")
+        if dc.fpga.read_dio('vcxo_lock'):
+            print("VCXO is locked")   
+        else:
+            print("VCXO is not locked")
+
+    @cmd2.with_category("RunControl commands")
+    def do_force_PPS_align(self, args: argparse.Namespace) -> None:
+        print("force align... ")
+        dc.fpga.write_dio('force_align', True)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_EN_Laser(self, args: argparse.Namespace) -> None:
+        print("Enable Laser Controller... ")
+        dc.fpga.write_dio('laser_en', True)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_DIS_Laser(self, args: argparse.Namespace) -> None:
+        print("Disable Laser Controller... ")
+        dc.fpga.write_dio('laser_en', False)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_ON_flipper_steer(self, args: argparse.Namespace) -> None:
+        print("ON flipper steer... ")
+        dc.fpga.write_dio('flipper_steer', True)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_OFF_flipper_steer(self, args: argparse.Namespace) -> None:
+        print("OFF flipper steer... ")
+        dc.fpga.write_dio('flipper_steer', False)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_ON_flipper_atten(self, args: argparse.Namespace) -> None:
+        print("ON flipper atten... ")
+        dc.fpga.write_dio('flipper_atten', True)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_OFF_flipper_atten(self, args: argparse.Namespace) -> None:
+        print("OFF flipper atten... ")
+        dc.fpga.write_dio('flipper_atten', False)
+        print("done")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_check_cover_raman(self, args: argparse.Namespace) -> None:
+        print("check Raman cover... ")
+        if dc.fpga.read_dio('cover_raman_closed') and (not dc.fpga.read_dio('cover_raman_open')):
+            print("Raman cover is closed")   
+        else:
+            print("Raman cover is open")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_check_cover_steer(self, args: argparse.Namespace) -> None:
+        print("check Steer cover... ")
+        if dc.fpga.read_dio('cover_steer_closed') and (not dc.fpga.read_dio('cover_steer_open')):
+            print("Steer cover is closed")   
+        else:
+            print("Steer cover is open")
+    
+    @cmd2.with_category("RunControl commands")
+    def do_align_UnixTime(self, args: argparse.Namespace) -> None:
+        timeout = int(time.time()) + 1.5
+        while True:
+            ts = time.time()
+            if ts > timeout:
+                unix_time = int(ts)#int(time.time())
+                print("align UnixTime... ")
+                dc.fpga.write_register('arm_unixtime', int(time.time()))
+                print("done")
+
+    @cmd2.with_category("RunControl commands")
+    def do_check_UnixTime(self, args: argparse.Namespace) -> None:
+        print("check UnixTime... ")
+        print(f"UnixTime : {int(time.time())}, FPGA time: {dc.fpga.read_register('unixtime')}")
+    
+    rc_parser = argparse.ArgumentParser()
+    rc_parser.add_argument('value', type=int, help='Delay of shot from the PPS (ms)')
+    @cmd2.with_argparser(rc_parser)
+    @cmd2.with_category("RunControl commands")
+    def do_set_PPS_Delay(self, args: argparse.Namespace) -> None:
+        dc.fpga.write_register('pps_delay', args.value*10e5)
+    
+    rc_parser = argparse.ArgumentParser()
+    rc_parser.add_argument('value', type=int, help='Laser pulse width (us), must be more than 50 us')
+    @cmd2.with_argparser(rc_parser)
+    @cmd2.with_category("RunControl commands")
+    def do_set_Pulse_width(self, args: argparse.Namespace) -> None:
+        dc.fpga.write_register('pulse_width', args.value*100)
+    
+    rc_parser = argparse.ArgumentParser()
+    rc_parser.add_argument('value', type=int, help='Laser pulse period (ms), 1000 ms for 1 Hz and 10 ms for 100 Hz')
+    @cmd2.with_argparser(rc_parser)
+    @cmd2.with_category("RunControl commands")
+    def do_set_Pulse_period(self, args: argparse.Namespace) -> None:
+        dc.fpga.write_register('pulse_period', args.value*10e5)
+
+    rc_parser = argparse.ArgumentParser()
+    rc_parser.add_argument('value', type=int, help='Number of shots to be fired')
+    @cmd2.with_argparser(rc_parser)
+    @cmd2.with_category("RunControl commands")
+    def do_set_Pulse_Number(self, args: argparse.Namespace) -> None:
+        dc.fpga.write_register('shots_num', args.value)
+    
+    rc_parser = argparse.ArgumentParser()
+    rc_parser.add_argument('value', type=int, help='Pulse energy (us), for 140 us sets 174 us, while for 100 us sets 164')
+    @cmd2.with_argparser(rc_parser)
+    @cmd2.with_category("RunControl commands")
+    def do_set_Pulse_energy(self, args: argparse.Namespace) -> None:
+        dc.fpga.write_register('pulse_energy', args.value*10e5)
+
+    @cmd2.with_category("RunControl commands")
+    def do_FIRE(self, args: argparse.Namespace) -> None:
+        dc.fpga.write_dio('laser_en', 1)
+        dc.fpga.write_dio('laser_start', 1)
+    
+    @cmd2.with_category("RunControl commands")
+    def do_stop_FIRE(self, args: argparse.Namespace) -> None:
+        dc.fpga.write_dio('laser_en', 0)
+
+        
+
+
+
+
+
+
+
 
 
 
