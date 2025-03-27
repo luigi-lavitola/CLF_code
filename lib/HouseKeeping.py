@@ -31,11 +31,19 @@ class HouseKeeping:
         self.adc = self.tla.get_ftdi_backend(self.slave2)
 
         self.log = logging.getLogger("housekeeping")
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler = TimedRotatingFileHandler('logs/hk.log', when='midnight', atTime=datetime.time(hour=18, minute=0))
-        handler.setFormatter(formatter)
-        self.log.addHandler(handler)
         self.log.setLevel(logging.INFO)
+
+        log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        log_handler = TimedRotatingFileHandler('logs/hk.log', when='midnight', atTime=datetime.time(hour=18, minute=0))
+        log_handler.setFormatter(log_formatter)
+        self.log.addHandler(log_handler)
+
+        self.csv = logging.getLogger("csv_housekeeping")
+        self.csv.setLevel(logging.INFO)
+        csv_formatter = logging.Formatter('%(asctime)s%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        csv_handler = TimedRotatingFileHandler('logs/hk.csv', when='midnight', atTime=datetime.time(hour=18, minute=0))
+        csv_handler.setFormatter(csv_formatter)
+        self.csv.addHandler(csv_handler)
 
         try:
             self.fpga = FPGADevice("/dev/runcontrol")
@@ -68,7 +76,6 @@ class HouseKeeping:
             { "dev": "dio", "name": "rain", "value": False, "error": False, "alarm": False},
             { "dev": "dio", "name": "cover_steer_open", "value": False },
             { "dev": "dio", "name": "cover_raman_open", "value": False },
-            # add cover steer and raman
         ]
 
     def collect_data(self):
@@ -85,11 +92,13 @@ class HouseKeeping:
                     d['value'] = self.fpga.read_dio(d['name'])
 
     def log_data(self):
-        # new file at 6 PM
         s = ''
+        csv_row = f',{int(time.time())}'
         for d in self.data:
-           s += f" {d['name']}={d['value']}[{d.get('unit', '')}]" 
+            s += f" {d['name']}={d['value']}[{d.get('unit', '')}]" 
+            csv_row += f",{d['value']}"
         self.log.info(s)
+        self.csv.info(csv_row)
 
     def check_alarm(self):
         alarm_data = []
