@@ -26,8 +26,8 @@ dc.init(cfg)
 
 ### 
 
-#nshots = 75000
-nshots = 1000
+nshots = 75000
+#nshots = 1000
 
 ###
 
