@@ -119,6 +119,10 @@ for _ in range(10):
     sys.stdout.flush() 
 print("done")
 
+print("wait for laser fire auth...")
+while not dc.laser.fire_auth():
+    print(dc.laser.temperature())
+    time.sleep(1)
 print("set laser in fire mode...")
 dc.laser.fire()
 print("done")

@@ -26,8 +26,8 @@ dc.init(cfg)
 
 ### 
 
-#nshots = 75000
-nshots = 1000
+nshots = 75000
+#nshots = 1000
 
 ###
 
@@ -108,17 +108,21 @@ if dc.fpga.read_dio('cover_raman_open') == 1 \
     and dc.fpga.read_dio('cover_raman_closed') == 1:
     print("COVER ERROR!!!")
 
-#print("open cover...")
-#WAIT_UNTIL_TRUE(dc.get_outlet("RAMAN_cover").on)
-#print("done")
+print("open cover...")
+WAIT_UNTIL_TRUE(dc.get_outlet("RAMAN_cover").on)
+print("done")
 
-#print("wait cover opening...")
-#while dc.fpga.read_dio('cover_raman_open') == dc.fpga.read_dio('cover_raman_closed'):
-#    time.sleep(1)
-#    print('.', end='')
-#    sys.stdout.flush() 
-#print("done")
+print("wait cover opening...")
+while dc.fpga.read_dio('cover_raman_open') == dc.fpga.read_dio('cover_raman_closed'):
+    time.sleep(1)
+    print('.', end='')
+    sys.stdout.flush() 
+print("done")
 
+print("wait for laser fire auth...")
+while not dc.laser.fire_auth():
+    print(dc.laser.temperature())
+    time.sleep(1)
 print("set laser in fire mode...")
 dc.laser.fire()
 print("done")
