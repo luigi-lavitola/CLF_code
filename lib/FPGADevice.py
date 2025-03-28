@@ -83,8 +83,16 @@ class FPGADevice:
 
     @critical_section
     def read_address(self, addr):
-        self.serial.write(f"{str(hex(addr))[2:]}\n".encode())
-        return int(self.serial.read_until('\r'.encode()).decode()[:-1], 16)
+        value = 0
+        while True:
+            self.serial.write(f"{str(hex(addr))[2:]}\n".encode())
+            try:
+                value = int(self.serial.read_until('\r'.encode()).decode()[:-1], 16)
+            except:
+                continue
+            finally:
+                break
+        return value
 
     @critical_section
     def write_address(self, addr, value):
