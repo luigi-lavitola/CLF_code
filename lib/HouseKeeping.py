@@ -34,14 +34,16 @@ class HouseKeeping:
         self.log.setLevel(logging.INFO)
 
         log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        log_handler = TimedRotatingFileHandler('logs/hk.log', when='midnight', atTime=datetime.time(hour=18, minute=0))
+        log_handler = TimedRotatingFileHandler('logs/hk.log', when='midnight', 
+            atTime=datetime.time(hour=18, minute=0))
         log_handler.setFormatter(log_formatter)
         self.log.addHandler(log_handler)
 
         self.csv = logging.getLogger("csv_housekeeping")
         self.csv.setLevel(logging.INFO)
         csv_formatter = logging.Formatter('%(asctime)s%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        csv_handler = TimedRotatingFileHandler('logs/hk.csv', when='midnight', atTime=datetime.time(hour=18, minute=0))
+        csv_handler = TimedRotatingFileHandler('logs/hk.csv', when='midnight', 
+            atTime=datetime.time(hour=18, minute=0))
         csv_handler.setFormatter(csv_formatter)
         self.csv.addHandler(csv_handler)
 
@@ -59,9 +61,9 @@ class HouseKeeping:
 
         self.data = [
             { "dev": "tla", "name": "battery1", "channel": 0, "value": 0, 
-                "unit": "V", "coeff": 0.012698329443235162, "min": 11.5, "max": 15, "alarm": False},
+                "unit": "V", "coeff": 0.012698329443235162, "min": 11.5, "max": 16, "alarm": False},
             { "dev": "tla", "name": "battery2", "channel": 1, "value": 0, 
-                "unit": "V", "coeff": 0.012857486052905534, "min": 11.5, "max": 15, "alarm": False},
+                "unit": "V", "coeff": 0.012857486052905534, "min": 11.5, "max": 16, "alarm": False},
             { "dev": "tla", "name": "solar2", "channel": 2, "value": 0, 
                 "unit": "V", "coeff": 0.012580072988236255 },
             { "dev": "tla", "name": "relay", "channel": 5, "value": 0, 
@@ -77,6 +79,9 @@ class HouseKeeping:
             { "dev": "dio", "name": "cover_steer_open", "value": False },
             { "dev": "dio", "name": "cover_raman_open", "value": False },
         ]
+
+        self.running = False
+        self.alarm_data = []
 
     def collect_data(self):
         for d in self.data:
@@ -101,32 +106,42 @@ class HouseKeeping:
         self.csv.info(csv_row)
 
     def check_alarm(self):
-        alarm_data = []
+        self.alarm_data = []
         for d in self.data:
             if d.get('alarm', None) is not None:
                 if d['dev'] == 'tla':
                     if (d['value'] < d['min']) or (d['value'] > d['max']):
                         d['alarm'] = True
-                        alarm_data.append(d)
+                        self.alarm_data.append(d)
                     else:
                         d['alarm'] = False
                 elif d['dev'] == 'dio':
                     if d['name'] == 'rain':
                         if d['value'] or d['error']:
                             d['alarm'] = True
-                            alarm_data.append(d)
+                            self.alarm_data.append(d)
                         else:
                             d['alarm'] = False
 
-        if len(alarm_data):
-            self.notify_subscribers(alarm_data)
+        if len(self.alarm_data):
+            self.notify_subscribers(self.alarm_data)
+
+    def get_alarm(self):
+        return self.alarm_data
 
     def run(self):
+        self.running = True
         while True:
             self.collect_data()
             self.log_data()
             self.check_alarm()
-            time.sleep(10)
+            for _ in range(10):
+                if self.running == False:
+                    return
+                time.sleep(1)
+
+    def close(self):
+        self.running = False
 
     def subscribe(self, subscriber):
         self.__subscribers.append(subscriber)
