@@ -2,7 +2,6 @@
 import time
 import datetime
 import logging
-import signal
 from functools import partial
 from logging.handlers import TimedRotatingFileHandler
 from lib.DeviceCollection import DeviceCollection
@@ -23,11 +22,6 @@ class RunBase:
             self.logger.addHandler(handler)
         self.log = partial(self.logger.log, extra={'classname': self.__class__.__name__})
 
-        signal.signal(signal.SIGINT, self.sigint_handler)
-        
-    def sigint_handler(self, sig, frame):
-        pass
-
     def execute(self, do_prepare=True, do_finish=True):
         if do_prepare:
             self.prepare()
@@ -46,7 +40,7 @@ class RunMock(RunBase):
 
     def run(self):
         self.log(logging.INFO, "run")
-        time.sleep(30)
+        time.sleep(10)
 
     def finish(self):
         self.log(logging.INFO, "finish")

@@ -2,11 +2,10 @@
 
 import sys
 import os
-import signal
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import threading 
 import cmd2
-from datetime import datetime
+from datetime import datetime, timedelta
 from lib.Configuration import Configuration
 from lib.DeviceCollection import DeviceCollection
 from lib.HouseKeeping import HouseKeeping
@@ -30,9 +29,17 @@ class App(cmd2.Cmd):
 
         self.rm = RunManager(self.dc, self.hk)
 
-        self.mode = "auto"
+        self.prompt_styles = {
+            'auto': "CLF:" + cmd2.style('AUTO', fg=cmd2.Fg.GREEN, bold=True) + "> ",
+            'manual': "CLF:" + cmd2.style('MANUAL', fg=cmd2.Fg.YELLOW, bold=True) + "> ",
+        }
+        self.mode = 'auto'
 
-        self.prompt = f"CLF:{self.mode}> "
+        self.prompt = self.prompt_styles[self.mode]
+
+    # catch CTRL-C to avoid issues with running threads/processes
+    def sigint_handler(self, signum, sigframe):
+        pass
 
     ## mode ##
 
@@ -44,12 +51,12 @@ class App(cmd2.Cmd):
         """set system mode"""
         if arg.mode == 'manual':
             # disable scheduler
-            pass
+            self.rm.stop_scheduler()
         elif arg.mode == 'auto':
             # enable scheduler
-            pass
+            self.rm.start_scheduler()
         self.mode = arg.mode
-        self.prompt = f"CLF:{self.mode}> "
+        self.prompt = self.prompt_styles[self.mode]
         print(f"mode set to {self.mode}")
 
     ## start ##
@@ -72,23 +79,20 @@ class App(cmd2.Cmd):
     def do_status(self, _):
         """get system info"""
         print(f"mode: {self.mode}")
+        print(f'next run for auto mode: {self.rm.next_run()}')
 
     ## quit ##
 
     def do_quit(self, _):
         """quit"""
-        # check if manual run is in progress
+        if self.rm.job_is_running() == True:
+            print(f"run in progress - try again later")
+            return
         self.hk.close()
         self.thr_hk.join()
         self.rm.close()
         print("Bye!")
         sys.exit(0)
-
-# catch CTRL-C to avoid issues with running threads/processes
-def signal_handler(sig, frame):
-    pass
-
-signal.signal(signal.SIGINT, signal_handler)
 
 app = App()
 app.cmdloop()

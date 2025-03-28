@@ -66,7 +66,6 @@ class RunCalendar:
             ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype="raman"))
 
         # find first valid time 
-        #while entry.start_date.minute not in [15, 30, 45]:
         while entry.start_date.minute not in [5, 20, 35, 50]:
             entry.start_date += timedelta(minutes=1)
 
