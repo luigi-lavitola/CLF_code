@@ -13,10 +13,12 @@ class CalendarEntry:
 @dataclass
 class RunEntry:
     start_time: datetime
-    runtype: str        # 'raman' or 'fd'
+    runtype: str
+    first: bool = False
+    last: bool = False
 
     def __str__(self):
-        return f'start_time: {self.start_time}, runtype: {self.runtype}'
+        return f'first/last: {self.first}/{self.last}, start_time: {self.start_time}, runtype: {self.runtype}'
 
 class RunCalendar:
 
@@ -70,13 +72,15 @@ class RunCalendar:
 
         start_time = entry.start_date
         while start_time <= entry.end_date:
-            #if entry.raman_run is True and start_time.strftime("%H:%M") == "04:30":
             if entry.raman_run is True:
                 if start_time.strftime("%H:%M") == "04:20" or start_time.strftime("%H:%M") == "04:35":
                     start_time += timedelta(minutes=15)
                     continue
             ttable.append(RunEntry(start_time, runtype="fd"))
             start_time += timedelta(minutes=15)
+
+        ttable[0].first = True
+        ttable[-1].last = True
 
         return ttable
             
