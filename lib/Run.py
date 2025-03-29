@@ -238,7 +238,7 @@ class RunCLF(RunBase):
     def prepare(self):
         self.log(logging.INFO, "prepare")
         self.log(logging.INFO, "configure FPGA registers for CLF run")
-        self.dc.fpga.write_register('pps_delay', 249_820_000)    #250 ms - 180 us of laser shot delay
+        self.dc.fpga.write_register('pps_delay', 24_982_000)    #250 ms - 180 us of laser shot delay
         self.dc.fpga.write_bit('laser_en', 1)
         self.dc.fpga.write_register('pulse_width', 10_000)  # 100 us
         self.dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
