@@ -1,9 +1,11 @@
 
 import os
 import sys
+import gps
 import time
 import datetime
 import logging
+import threading
 from logging.handlers import TimedRotatingFileHandler
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from pyftdi.spi import SpiController
@@ -29,6 +31,9 @@ class HouseKeeping:
         self.slave2 = self.spi2.get_port(cs=0, freq=30E6, mode=0)
         self.tla = TLA2518()
         self.adc = self.tla.get_ftdi_backend(self.slave2)
+
+        self.gpsd = gps.gps(mode=gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
+        self.gps_thr = None
 
         self.log = logging.getLogger("housekeeping")
         self.log.setLevel(logging.INFO)
@@ -78,10 +83,17 @@ class HouseKeeping:
             { "dev": "dio", "name": "rain", "value": False, "error": False, "alarm": False},
             { "dev": "dio", "name": "cover_steer_open", "value": False },
             { "dev": "dio", "name": "cover_raman_open", "value": False },
+            { "dev": "gps", "name": "gps_fix", "value": True, "alarm": False, "info": "" },
         ]
+        
+        self.gps_fix_str = [ "unknown", "no fix", "2D", "3D" ]
 
         self.running = False
         self.alarm_data = []
+
+    def collect_gps(self):
+        while self.running:
+            self.gpsd.next()
 
     def collect_data(self):
         for d in self.data:
@@ -95,6 +107,10 @@ class HouseKeeping:
                     d['value'] = self.fpga.read_dio('rain')
                 else:
                     d['value'] = self.fpga.read_dio(d['name'])
+            elif d['dev'] == 'gps':
+                if d['name'] == 'gps_fix':
+                    d['value'] = self.gpsd.fix.mode > 1
+                    d['info'] = self.gps_fix_str[self.gpsd.fix.mode]
 
     def log_data(self):
         s = ''
@@ -122,6 +138,9 @@ class HouseKeeping:
                             self.alarm_data.append(d)
                         else:
                             d['alarm'] = False
+                elif d['dev'] == 'gps':
+                    if d['name'] == 'gps_fix':
+                        d['alarm'] = self.gpsd.fix.mode <= 1
 
         if len(self.alarm_data):
             self.notify_subscribers(self.alarm_data)
@@ -131,6 +150,8 @@ class HouseKeeping:
 
     def run(self):
         self.running = True
+        self.gps_thr = threading.Thread(target=self.collect_gps)
+        self.gps_thr.start()
         while True:
             self.collect_data()
             self.log_data()
@@ -142,6 +163,7 @@ class HouseKeeping:
 
     def close(self):
         self.running = False
+        self.gps_thr.join()
 
     def subscribe(self, subscriber):
         self.__subscribers.append(subscriber)
