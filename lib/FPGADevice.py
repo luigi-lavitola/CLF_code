@@ -1,7 +1,7 @@
 
 import serial
 import time
-from threading import Lock
+from multiprocessing import Lock
 
 class FPGADevice:
 
