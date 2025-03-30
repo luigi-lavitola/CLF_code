@@ -4,9 +4,18 @@ import datetime
 import logging
 import paramiko
 from functools import partial
+from enum import Enum
 from logging.handlers import TimedRotatingFileHandler
 from lib.DeviceCollection import DeviceCollection
 from lib.Helpers import *
+
+class RunType(Enum):
+    RAMAN = 1,
+    FD = 2,
+    CELESTE = 3,
+    CALIB = 4,
+    MOCK = 5,
+
 
 class RunBase:
 
@@ -53,7 +62,6 @@ class RunRaman(RunBase):
         super().__init__(dc)
 
         self.nshots = 75000
-        #self.nshots = 1000
 
     def prepare(self):
         self.log(logging.INFO, "configure FPGA registers for RAMAN run")
@@ -364,3 +372,36 @@ class RunCLF(RunBase):
         self.dc.fpga.write_dio('inverter', False)
         self.log(logging.INFO, "done")
         
+
+class RunCeleste(RunBase):
+
+    def __init__(self, dc : DeviceCollection):
+        super().__init__(dc) 
+
+    def prepare(self):
+        self.log(logging.INFO, "prepare")
+
+    def run(self):
+        self.log(logging.INFO, "run")
+        time.sleep(10)
+
+    def finish(self):
+        self.log(logging.INFO, "finish")
+
+
+class RunCalib(RunBase):
+
+    def __init__(self, dc : DeviceCollection):
+        super().__init__(dc) 
+
+    def prepare(self):
+        self.log(logging.INFO, "prepare")
+
+    def run(self):
+        self.log(logging.INFO, "run")
+        time.sleep(10)
+
+    def finish(self):
+        self.log(logging.INFO, "finish")
+
+

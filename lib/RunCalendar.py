@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+from lib.Run import RunType
 
 @dataclass
 class CalendarEntry:
@@ -13,17 +14,18 @@ class CalendarEntry:
 @dataclass
 class RunEntry:
     start_time: datetime
-    runtype: str
+    runtype: RunType
     first: bool = False
     last: bool = False
 
     def __str__(self):
-        return f'first/last: {self.first}/{self.last}, start_time: {self.start_time}, runtype: {self.runtype}'
+        return f'first/last: {self.first}/{self.last}, start_time: {self.start_time}, runtype: {self.runtype.name}'
 
 class RunCalendar:
 
     def __init__(self, file_path):
         self.file_path = file_path
+        # run_entries contains parsed rows (CalendarEntry) from calendar file (.txt)
         self.run_entries = []
         self.parse_file()
 
@@ -45,9 +47,9 @@ class RunCalendar:
                     continue
                 self.run_entries.append(entry)
    
-    def get_next_entries(self, num=None):
+    def get_next_entries(self, dayoffset=0, num=None):
         for i, entry in enumerate(self.run_entries):
-            if entry.start_date >= datetime.now():
+            if entry.start_date >= datetime.now() - timedelta(days=dayoffset):
                 if num is None:
                     return self.run_entries[i:]
                 return self.run_entries[i:i+num]
@@ -55,15 +57,15 @@ class RunCalendar:
     def get_timetable_for_entry(self, entry):
         ttable = []
         if entry.raman_run is True:
-            ttable.append(RunEntry(entry.start_date - timedelta(minutes=30), runtype="raman"))
+            ttable.append(RunEntry(entry.start_date - timedelta(minutes=30), runtype=RunType.RAMAN, first=True))
             ttable.append(RunEntry(datetime(
                 year=entry.end_date.year, 
                 month=entry.end_date.month,
                 day=entry.end_date.day,
                 hour=4,
-                minute=30), runtype="raman")
+                minute=30), runtype=RunType.RAMAN)
             )
-            ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype="raman"))
+            ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN, last=True))
 
         # find first valid time 
         while entry.start_date.minute not in [5, 20, 35, 50]:
@@ -75,11 +77,12 @@ class RunCalendar:
                 if start_time.strftime("%H:%M") == "04:20" or start_time.strftime("%H:%M") == "04:35":
                     start_time += timedelta(minutes=15)
                     continue
-            ttable.append(RunEntry(start_time, runtype="fd"))
+            ttable.append(RunEntry(start_time, runtype=RunType.FD))
             start_time += timedelta(minutes=15)
 
-        ttable[0].first = True
-        ttable[-1].last = True
+        if entry.raman_run is False:
+            ttable[0].first = True
+            ttable[-1].last = True
 
         return ttable
             
