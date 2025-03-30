@@ -5,3 +5,4 @@ paramiko==2.12.0
 pyftdi==0.56.0
 pyserial==3.5
 PyYAML==6.0.2
+gps==3.19
