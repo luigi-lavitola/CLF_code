@@ -9,8 +9,10 @@ from datetime import datetime, timedelta
 from lib.Configuration import Configuration
 from lib.DeviceCollection import DeviceCollection
 from lib.HouseKeeping import HouseKeeping
-from lib.RunManager import RunManager, RunType
+from lib.RunManager import RunManager
 from lib.RunCalendar import RunEntry
+from lib.Logger import Logger
+from lib.Run import RunType
 
 class App(cmd2.Cmd):
 
@@ -22,6 +24,8 @@ class App(cmd2.Cmd):
 
         self.dc = DeviceCollection()
         self.dc.init(self.cfg)
+
+        #Logger.init()
 
         self.hk = HouseKeeping()
         self.thr_hk = threading.Thread(target=self.hk.run)
@@ -62,7 +66,12 @@ class App(cmd2.Cmd):
     ## start ##
     
     start_parser = cmd2.Cmd2ArgumentParser()
-    start_parser.add_argument('runtype', choices=['raman', 'clf', 'mock'])
+    start_parser.add_argument('runtype', choices=[
+        str.lower(RunType.RAMAN.name),
+        str.lower(RunType.FD.name),
+        str.lower(RunType.CELESTE.name),
+        str.lower(RunType.CALIB.name),
+        str.lower(RunType.MOCK.name)])
 
     @cmd2.with_argparser(start_parser)
     def do_start(self, arg):
@@ -71,7 +80,17 @@ class App(cmd2.Cmd):
             print("E: set mode to manual")
             return
 
-        run = RunEntry(datetime.now(), arg.runtype, False, False)
+        if arg.runtype == 'raman':
+            run = RunEntry(datetime.now(), RunType.RAMAN, False, False)
+        elif arg.runtype == 'fd':
+            run = RunEntry(datetime.now(), RunType.FD, False, False)
+        elif arg.runtype == 'celeste':
+            run = RunEntry(datetime.now(), RunType.CELESTE, False, False)
+        elif arg.runtype == 'calib':
+            run = RunEntry(datetime.now(), RunType.CALIB, False, False)
+        elif arg.runtype == 'mock':
+            run = RunEntry(datetime.now(), RunType.MOCK, False, False)
+             
         self.rm.submit(run, source='cli')
             
     ## status ##
@@ -79,6 +98,7 @@ class App(cmd2.Cmd):
     def do_status(self, _):
         """get system info"""
         print(f"mode: {self.mode}")
+        print(f'scheduler status: {self.rm.print_status()}')
         print(f'next run for auto mode: {self.rm.next_run()}')
 
     ## quit ##

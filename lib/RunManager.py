@@ -6,7 +6,6 @@ import logging
 import threading
 import multiprocessing
 import datetime
-from enum import Enum
 from functools import partial
 from logging.handlers import TimedRotatingFileHandler
 
@@ -15,13 +14,6 @@ from lib.DeviceCollection import DeviceCollection
 from lib.HouseKeeping import HouseKeeping
 from lib.RunCalendar import RunCalendar, RunEntry
 from lib.Run import *
-
-class RunType(Enum):
-    RAMAN = 1,
-    FD = 2,
-    CELESTE = 3,
-    CALIB = 4,
-    MOCK = 5,
 
 class RunManager:
 
@@ -32,18 +24,21 @@ class RunManager:
         self.rc = RunCalendar('docs/ALLFDCalendar.txt')
 
         self.runs = []
-        for day in self.rc.get_next_entries():
+        # fetch runs up to 1 day before 
+        for day in self.rc.get_next_entries(dayoffset=1):
             for run in self.rc.get_timetable_for_entry(day):
                 self.runs.append(run)
 
         # test - remove
         #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(seconds=10), runtype="mock", last=True))
-        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=1), runtype="mock"))
-        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=2), runtype="mock"))
+        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=1), runtype="celeste"))
+        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=2), runtype="celeste"))
         #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=3), runtype="mock", last=True))
         # test - remove
 
+        # sort list of run an perform precise time alignment
         self.runlist = sorted(self.runs, key=lambda x: x.start_time)
+        self.runlist = [run for run in self.runlist if run.start_time > datetime.datetime.now()]
 
         self.logger = logging.getLogger("run")
         self.logger.setLevel(logging.INFO)
@@ -75,7 +70,7 @@ class RunManager:
                     self.submit(nr, source='runmanager')
                 else:
                     # warn user about scheduler disabled
-                    self.log(logging.WARN, f"run {nr.runtype} expected at {nr.start_time} not started due to scheduler disabled (check 'mode' in CLF cli)")
+                    self.log(logging.WARN, f"run {nr.runtype.name} expected at {nr.start_time} not started due to scheduler disabled (check 'mode' in CLF cli)")
                 self.runlist.remove(nr)
                 nr = self.next_run()
             time.sleep(1)
@@ -103,15 +98,20 @@ class RunManager:
         self.runentry = runentry
         if self.job_is_running() == False:
             if len(self.hk.get_alarm()) > 0:
-                self.log(logging.ERROR, f"{self.runentry.runtype} run cannot start due to alarms {self.hk.get_alarm()}")
+                self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to alarms {self.hk.get_alarm()}")
             else:
-                self.log(logging.INFO, f"start {self.runentry.runtype} run")
-                if self.runentry.runtype == 'clf':
+                self.log(logging.INFO, f"start {self.runentry.runtype.name} run")
+                if self.runentry.runtype == RunType.FD:
                     self.run = RunCLF(self.dc)
-                elif self.runentry.runtype == 'raman':
+                elif self.runentry.runtype == RunType.RAMAN:
                     self.run = RunRaman(self.dc)
-                elif self.runentry.runtype == 'mock':
+                elif self.runentry.runtype == RunType.CELESTE:
+                    self.run = RunCeleste(self.dc)
+                elif self.runentry.runtype == RunType.CALIB:
+                    self.run = RunCalib(self.dc)
+                elif self.runentry.runtype == RunType.MOCK:
                     self.run = RunMock(self.dc)
+
                 if source == 'cli':     # run started from command line interface
                     self.job = multiprocessing.Process(target=self.run.execute)
                     self.job.start()
@@ -122,7 +122,7 @@ class RunManager:
                         self.job = multiprocessing.Process(target=self.run.execute)
                     self.job.start()
         else:
-            self.log(logging.ERROR, f"{self.runentry.runtype} run cannot start due to other job running")
+            self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to other job running")
 
     def alarm_handler(self, msg):
         if self.job_is_running():
@@ -135,9 +135,9 @@ class RunManager:
 
     def print_status(self):
         if self.job_is_running():
-            print(f"RUNMANAGER: run {self.runentry.runtype} in progress")
+            return f"run {self.runentry.runtype.name} in progress"
         else:
-            print(f"RUNMANAGER: idle")
+            return "idle"
 
     def close(self):
         self.loop = False
