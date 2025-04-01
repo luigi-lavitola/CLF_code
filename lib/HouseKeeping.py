@@ -57,6 +57,9 @@ class HouseKeeping:
         except:
             self.fpga = FPGADevice.getInstance()
 
+        self.tcont.config_channel(2, SENSOR_TYPE__SENSE_RESISTOR |
+            (10000 * 1024) << SENSE_RESISTOR_VALUE_LSB)
+
         for ch in [4, 6, 8, 10, 12, 14, 16, 18, 20]:
             self.tcont.config_channel(ch, SENSOR_TYPE__THERMISTOR_44006_10K_25C |
                 THERMISTOR_RSENSE_CHANNEL__2 |
