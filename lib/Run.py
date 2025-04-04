@@ -33,11 +33,22 @@ class RunBase:
         self.log = partial(self.logger.log, extra={'classname': self.__class__.__name__})
 
     def execute(self, do_prepare=True, do_finish=True):
+        ret = None
         if do_prepare:
-            self.prepare()
-        self.run()
+            try:
+                ret = self.prepare()
+            except Exception as e:
+                self.log(logging.ERROR, f"exception occurred during prepare: {e}")
+        if ret == 0:        # check if run preparation is completed
+            try:
+                self.run()
+            except Exception as e:
+                self.log(logging.ERROR, f"exception occurred during run: {e}") 
         if do_finish:
-            self.finish()
+            try:
+                self.finish()
+            except Exception as e:
+                self.log(logging.ERROR, f"exception occurred during finish: {e}")
 
 
 class RunMock(RunBase):
@@ -47,6 +58,7 @@ class RunMock(RunBase):
 
     def prepare(self):
         self.log(logging.INFO, "prepare")
+        return 0
 
     def run(self):
         self.log(logging.INFO, "run")
@@ -55,6 +67,9 @@ class RunMock(RunBase):
     def finish(self):
         self.log(logging.INFO, "finish")
 
+    def abort(self):
+        self.log(logging.INFO, "abort")
+        self.finish()
 
 class RunRaman(RunBase):
 
@@ -67,6 +82,7 @@ class RunRaman(RunBase):
         self.log(logging.INFO, "configure FPGA registers for RAMAN run")
         self.dc.fpga.write_register('pps_delay', 0)
         self.dc.fpga.write_bit('laser_en', 1)
+        self.dc.fpga.write_bit('timestamp_en', 0)
         self.dc.fpga.write_register('pulse_width', 10_000)  # 100 us
         self.dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
         self.dc.fpga.write_register('pulse_period', 1_000_000) # 10 ms
@@ -121,14 +137,6 @@ class RunRaman(RunBase):
         self.dc.laser.set_mode(qson = 1, dpw = 140)
         self.log(logging.INFO, "done")
 
-        self.log(logging.INFO, "laser warmup and wait for laser fire auth")
-        self.dc.laser.warmup()
-        while not self.dc.laser.fire_auth():
-            self.log(logging.INFO, self.dc.laser.temperature())
-            self.dc.laser.standby()
-            time.sleep(1)
-        self.log(logging.INFO, "done")
-
         self.log(logging.INFO, "radiometer 3700 setup")
         self.dc.get_radiometer('Rad1').setup()
         self.log(logging.INFO, "done")
@@ -146,13 +154,35 @@ class RunRaman(RunBase):
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "wait for cover opening...")
+        cover_timeout_s = 120
+        t = 0
         while self.dc.fpga.read_dio('cover_raman_open') == self.dc.fpga.read_dio('cover_raman_closed'):
+            if t >= laser_timeout_s:
+                self.log(logging.ERROR, f"cover open timeout ({cover_timeout_s}) - run interrupted")
+                return -1
             time.sleep(1)
+            t += 1
+        self.log(logging.INFO, "done")
+
+        self.log(logging.INFO, "laser warmup and wait for laser fire auth")
+        self.dc.laser.warmup()
+        laser_timeout_s = 120
+        t = 0
+        while not self.dc.laser.fire_auth():
+            if t >= laser_timeout_s:
+                self.log(logging.ERROR, f"laser fire authorization timeout ({laser_timeout_s}s) - run interrupted")
+                return -1
+            self.log(logging.INFO, self.dc.laser.temperature())
+            #self.dc.laser.standby()
+            time.sleep(1)
+            t += 1
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "set laser in fire mode...")
         self.dc.laser.fire()
         self.log(logging.INFO, "done")
+
+        return 0
 
     def run(self):
         self.log(logging.INFO, "start laser shots")
@@ -204,24 +234,37 @@ class RunRaman(RunBase):
         WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_cover").off)
         self.log(logging.INFO, "done")
 
+        cover_timeout_s = 120
+        t = 0
         self.log(logging.INFO, "wait for open limit switch release")
         while self.dc.fpga.read_dio('cover_raman_open') == True:
+            if t >= laser_timeout_s:
+                self.log(logging.ERROR, f"limit switch release timeout ({cover_timeout_s}) - run interrupted")
+                return -1
             time.sleep(1)
+            t += 1
         self.log(logging.INFO, "done")
 
+        cover_timeout_s = 120
+        t = 0
         self.log(logging.INFO, "wait cover closing")
         while self.dc.fpga.read_dio('cover_raman_open') == self.dc.fpga.read_dio('cover_raman_closed'):
+            if t >= laser_timeout_s:
+                self.log(logging.ERROR, f"cover close timeout ({cover_timeout_s}) - run interrupted")
+                return -1
             time.sleep(1)
+            t += 1
+        self.log(logging.INFO, "done")
+        
+        time.sleep(2)
+        self.log(logging.INFO, "turn off RAMAN DAQ...")
+        WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_inst").off)
         self.log(logging.INFO, "done")
 
     def finish(self):
 
         self.log(logging.INFO, "turn off Radiometer outlet")
         WAIT_UNTIL_TRUE(self.dc.get_outlet('radiometer').off)
-        self.log(logging.INFO, "done")
-
-        self.log(logging.INFO, "turn off RAMAN DAQ...")
-        WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_inst").off)
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "turn off Laser outlet")
@@ -235,9 +278,51 @@ class RunRaman(RunBase):
         self.log(logging.INFO, "turn off inverter")
         self.dc.fpga.write_dio('inverter', False)
         self.log(logging.INFO, "done")
+
+    def abort(self):
+
+        self.log(logging.INFO, "abort")
+        
+        self.dc.fpga.write_bit('laser_en', 0)
+
+        self.log(logging.INFO, "set laser standby")
+        self.dc.laser.standby()
+        self.log(logging.INFO, "done")
+
+        self.log(logging.INFO, "close cover")
+        WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_cover").off)
+        self.log(logging.INFO, "done")
+
+        cover_timeout_s = 120
+        t = 0
+        self.log(logging.INFO, "wait for open limit switch release")
+        while self.dc.fpga.read_dio('cover_raman_open') == True:
+            if t >= laser_timeout_s:
+                self.log(logging.ERROR, f"limit switch release timeout ({cover_timeout_s}) - run interrupted")
+                return -1
+            time.sleep(1)
+            t += 1
+        self.log(logging.INFO, "done")
+
+        cover_timeout_s = 120
+        t = 0
+        self.log(logging.INFO, "wait cover closing")
+        while self.dc.fpga.read_dio('cover_raman_open') == self.dc.fpga.read_dio('cover_raman_closed'):
+            if t >= laser_timeout_s:
+                self.log(logging.ERROR, f"cover close timeout ({cover_timeout_s}) - run interrupted")
+                return -1
+            time.sleep(1)
+            t += 1
+        self.log(logging.INFO, "done")
+
+        self.log(logging.INFO, "unselect RAMAN beam")
+        self.dc.fpga.write_dio('flipper_raman', False)
+        self.log(logging.INFO, "done")
+        
+        self.finish()
         
 
-class RunCLF(RunBase):
+class RunFD(RunBase):
 
     def __init__(self, dc : DeviceCollection):
         super().__init__(dc)
@@ -245,9 +330,11 @@ class RunCLF(RunBase):
         
     def prepare(self):
         self.log(logging.INFO, "prepare")
-        self.log(logging.INFO, "configure FPGA registers for CLF run")
+        self.log(logging.INFO, "configure FPGA registers for FD run")
         self.dc.fpga.write_register('pps_delay', 24_982_000)    #250 ms - 180 us of laser shot delay
         self.dc.fpga.write_bit('laser_en', 1)
+        self.dc.fpga.write_bit('timestamp_en', 1)
+
         self.dc.fpga.write_register('pulse_width', 10_000)  # 100 us
         self.dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
         self.dc.fpga.write_register('pulse_period', 100_000_000)  # 1000 ms 1 hz
@@ -308,10 +395,16 @@ class RunCLF(RunBase):
 
         self.log(logging.INFO, "laser warmup and wait for laser fire auth")
         self.dc.laser.warmup()
+        laser_timeout_s = 120
+        t = 0
         while not self.dc.laser.fire_auth():
+            if t >= laser_timeout_s:
+                self.log(logging.ERROR, f"laser fire authorization timeout ({laser_timeout_s}s) - run interrupted")
+                return -1
             self.log(logging.INFO, self.dc.laser.temperature())
-            self.dc.laser.standby()
+            #self.dc.laser.standby()
             time.sleep(1)
+            t += 1
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "select vertical beam")
@@ -331,15 +424,17 @@ class RunCLF(RunBase):
         self.dc.laser.fire()
         self.log(logging.INFO, "done")
 
+        return 0
+
     def run(self):
-        self.log(logging.INFO, "start CLF Run")
+        self.log(logging.INFO, "start FD Run")
         self.dc.fpga.write_dio('laser_en', 1)
         self.dc.fpga.write_dio('laser_start', 1)
 
         for i in range(self.nshots):
             power=self.dc.get_radiometer('Rad1').read_power()
-            seconds, counter, width = self.dc.data.read_event()
-            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, width: {width}')
+            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
+            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
         
         self.log(logging.INFO, "set laser standby")
         self.dc.laser.standby()
@@ -372,6 +467,25 @@ class RunCLF(RunBase):
         self.dc.fpga.write_dio('inverter', False)
         self.log(logging.INFO, "done")
         
+    def abort(self):
+        self.log(logging.INFO, "abort")
+
+        self.dc.fpga.write_dio('laser_en', 0)
+
+        self.log(logging.INFO, "set laser standby")
+        self.dc.laser.standby()
+        self.log(logging.INFO, "done")
+
+        self.log(logging.INFO, "close cover")
+        WAIT_UNTIL_TRUE(self.dc.get_outlet("Vert_cover").off)
+        self.log(logging.INFO, "done")
+
+        self.log(logging.INFO, "wait for cover closing...")
+        for _ in range(10):
+            time.sleep(1)
+        self.log(logging.INFO, "done")
+
+        self.finish()
 
 class RunCeleste(RunBase):
 
@@ -380,6 +494,7 @@ class RunCeleste(RunBase):
 
     def prepare(self):
         self.log(logging.INFO, "prepare")
+        return 0
 
     def run(self):
         self.log(logging.INFO, "run")
@@ -387,6 +502,10 @@ class RunCeleste(RunBase):
 
     def finish(self):
         self.log(logging.INFO, "finish")
+
+    def abort(self):
+        self.log(logging.INFO, "abort")
+        self.finish()
 
 
 class RunCalib(RunBase):
@@ -396,12 +515,16 @@ class RunCalib(RunBase):
 
     def prepare(self):
         self.log(logging.INFO, "prepare")
+        return 0
 
     def run(self):
         self.log(logging.INFO, "run")
         time.sleep(10)
-
+ 
     def finish(self):
         self.log(logging.INFO, "finish")
 
+    def abort(self):
+        self.log(logging.INFO, "abort")
+        self.finish()
 
