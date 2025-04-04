@@ -66,12 +66,22 @@ class RunCalendar:
         )
         ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN, last=True))
 
-        if entry.has_fd_run:
-            # find first valid time 
-            while entry.start_date.minute not in [5, 20, 35, 50]:
-                entry.start_date += timedelta(minutes=1)
+        start_date = entry.start_date
+        while start_date.minute != 0:
+            start_date += timedelta(minutes=1)
+        start_time = start_date
+        while start_time <= entry.end_date:
+            if start_date.minute == 0:
+                ttable.append(RunEntry(start_time, runtype=RunType.CELESTE))
+            start_time += timedelta(hours=1)
 
-            start_time = entry.start_date
+        if entry.has_fd_run:
+            start_date = entry.start_date
+            # find first valid time 
+            while start_date.minute not in [5, 20, 35, 50]:
+                start_date += timedelta(minutes=1)
+
+            start_time = start_date
             while start_time <= entry.end_date:
                 if start_time.strftime("%H:%M") == "04:35" or start_time.strftime("%H:%M") == "04:50":
                     start_time += timedelta(minutes=15)

@@ -30,9 +30,9 @@ class RunManager:
                 self.runs.append(run)
 
         # test - remove
-        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(seconds=10), runtype="mock", last=True))
-        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=1), runtype="celeste"))
-        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=2), runtype="celeste"))
+        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(seconds=10), runtype=RunType.MOCK, last=True))
+        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=1), runtype=RunType.RAMAN, last=False))
+        #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=22), runtype=RunType.FD, last=True))
         #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=3), runtype="mock", last=True))
         # test - remove
 
@@ -102,9 +102,10 @@ class RunManager:
             else:
                 self.log(logging.INFO, f"start {self.runentry.runtype.name} run")
                 if self.runentry.runtype == RunType.FD:
-                    self.run = RunCLF(self.dc)
+                    self.run = RunFD(self.dc)
                 elif self.runentry.runtype == RunType.RAMAN:
-                    self.run = RunRaman(self.dc)
+                    #self.log(logging.INFO, "skipping Raman run for debug reasons") #self.run = RunRaman(self.dc)
+                    self.run= RunRaman(self.dc)
                 elif self.runentry.runtype == RunType.CELESTE:
                     self.run = RunCeleste(self.dc)
                 elif self.runentry.runtype == RunType.CALIB:
@@ -124,13 +125,28 @@ class RunManager:
         else:
             self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to other job running")
 
+    def stop(self):
+        if self.job_is_running():
+            self.job.terminate()
+            self.job = multiprocessing.Process(target=self.run.abort)
+            self.job.start()
+            return 0
+        return -1
+
+    def kill(self):
+        if self.job_is_running():
+            self.job.terminate()
+            self.log(logging.WARN, f"{self.runentry.runtype.name} run killed")
+            return 0
+        return -1
+
     def alarm_handler(self, msg):
         if self.job_is_running():
             self.log(logging.INFO, f"alarm received during run: {msg}")
             self.job.terminate()
             self.log(logging.INFO, f"run aborted")
             self.log(logging.INFO, f"start devices shutdown")
-            self.run.finish()
+            self.run.abort()
             self.log(logging.INFO, f"finish devices shutdown")
 
     def print_status(self):
