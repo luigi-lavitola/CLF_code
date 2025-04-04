@@ -92,7 +92,33 @@ class App(cmd2.Cmd):
             run = RunEntry(datetime.now(), RunType.MOCK, False, False)
              
         self.rm.submit(run, source='cli')
-            
+
+    ## stop ##
+
+    def do_stop(self, _):
+        """stop a run"""
+        if self.rm.job_is_running() == True:
+            print(f"run {self.rm.runentry.runtype.name} in progress")
+            res = input("do you confirm stop (y/n) ")
+            if str.lower(res) == 'y':
+                self.rm.stop()
+                print("run stopped")
+        else:
+            print("no run in progress")
+
+    ## kill ##
+
+    def do_kill(self, _):
+        """kill a run"""
+        if self.rm.job_is_running() == True:
+            print(f"run {self.rm.runentry.runtype.name} in progress")
+            res = input("do you confirm kill (y/n) ")
+            if str.lower(res) == 'y':
+                self.rm.kill()
+                print("run killed")
+        else:
+            print("no run in progress")
+
     ## status ##
 
     def do_status(self, _):
