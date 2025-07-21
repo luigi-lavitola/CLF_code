@@ -787,15 +787,27 @@ class RunCalib(RunBase):
             seconds, counter, pps, counter_cycles = self.dc.data.read_event()
             self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
         
+        
+        self.log(logging.INFO, "Start ECAL at 100 us")
+        self.log(logging.INFO, "100 us energy setting now")
+        self.dc.fpga.write_register('pulse_energy', 16_400) # 140 us = 174 us, maximum
+        
+        self.dc.fpga.write_dio('laser_en', 1)
+        self.dc.fpga.write_dio('laser_start', 1)
+        
+        for i in range(self.nshots):
+            power=self.dc.get_radiometer('Rad3').read_power()
+            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
+            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
+        
+        
         self.dc.laser.standby()
         
         self.log(logging.INFO, "Rad 3 finished, going home")
         self.dc.get_motor("UpNorthSouth").move_ABS0()
         self.dc.get_motor("UpEastWest").move_ABS0()
         
-        self.log(logging.INFO, "100 us energy setting now")
-        self.dc.fpga.write_register('pulse_energy', 16_400) # 140 us = 174 us, maximum
-
+        
         self.log(logging.INFO, "RAD2 positioning on going...")
         self.dc.get_motor("UpNorthSouth").move_ABS(1300)
         self.dc.get_motor("UpEastWest").move_ABS(20200)
