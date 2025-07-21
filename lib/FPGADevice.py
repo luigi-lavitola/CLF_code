@@ -1,7 +1,7 @@
 
 import serial
 import time
-from threading import Lock
+from multiprocessing import Lock
 
 class FPGADevice:
 
@@ -54,6 +54,7 @@ class FPGADevice:
         self.iomap = {}
         self.iomap["laser_start"] = FPGAIO(0x3, 0)
         self.iomap["laser_en"] = FPGAIO(0x3, 1)
+        self.iomap["timestamp_en"] = FPGAIO(0x3, 2)
         self.iomap["cover_raman_closed"] = FPGAIO(0x16, 0)
         self.iomap["cover_raman_open"] = FPGAIO(0x16, 1)
         self.iomap["cover_steer_closed"] = FPGAIO(0x16, 2, inverted=True)
@@ -83,8 +84,16 @@ class FPGADevice:
 
     @critical_section
     def read_address(self, addr):
-        self.serial.write(f"{str(hex(addr))[2:]}\n".encode())
-        return int(self.serial.read_until('\r'.encode()).decode()[:-1], 16)
+        value = 0
+        while True:
+            self.serial.write(f"{str(hex(addr))[2:]}\n".encode())
+            try:
+                value = int(self.serial.read_until('\r'.encode()).decode()[:-1], 16)
+            except:
+                continue
+            finally:
+                break
+        return value
 
     @critical_section
     def write_address(self, addr, value):

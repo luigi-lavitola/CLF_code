@@ -1,5 +1,9 @@
 import serial
 import time
+import logging
+import datetime
+from functools import partial
+from logging.handlers import TimedRotatingFileHandler
 
 CENTURION_COMMAND =30  
 CENTURION_LINE =100    #Blank line (Centurion_set.txt) */
@@ -36,15 +40,25 @@ class Centurion:
         try:
             self.serial = serial.Serial(**self.params)
         except serial.SerialException as e:
-             print(f"CENT:CONN:Unable to create serial device: {e}: {e}")
+             self.log(logging.INFO, f"CENT:CONN:Unable to create serial device: {e}: {e}")
 
         self.serial.port = port
+
+        self.logger = logging.getLogger("device")
+        self.logger.setLevel(logging.INFO)
+        if not self.logger.handlers:
+            formatter = logging.Formatter('%(asctime)s - %(classname)s::%(funcName)s - %(levelname)s - %(message)s')
+            handler = TimedRotatingFileHandler('logs/device.log', when='midnight',
+                atTime=datetime.time(hour=18, minute=0))
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+        self.log = partial(self.logger.log, extra={'classname': self.__class__.__name__})
 
     def open(self):
         try:
             self.serial.open()
         except serial.SerialException as e:
-            print(f"CENT:CONN:Unable to open device {self.port}: {e}")        
+            self.log(logging.INFO, f"CENT:CONN:Unable to open device {self.port}: {e}")        
     
     def check_open(func):
         def wrapper(self, *args, **kwargs):
@@ -57,10 +71,10 @@ class Centurion:
     def read_response(self):
         try:
             response = str(self.serial.read(255).decode())
-            print(response)
+            self.log(logging.INFO, response)
             return response
         except serial.SerialException: 
-            print(f"CENT:READ_R:ERROR:Unable to read response")
+            self.log(logging.INFO, f"CENT:READ_R:ERROR:Unable to read response")
             return -1
 
     @check_open
@@ -72,7 +86,7 @@ class Centurion:
             response = self.read_response()
             return response
         except serial.SerialException as e:
-            print(f"CENT:SEND_COMM:Unable to send {command} command: {e}")
+            self.log(logging.INFO, f"CENT:SEND_COMM:Unable to send {command} command: {e}")
             return -1
         
     @check_open
@@ -83,7 +97,7 @@ class Centurion:
             time.sleep(0.1)
             return 0
         except Exception as e:
-            print(f"CENT:FLUSH_BUFFERS:Unable to flush buffers")
+            self.log(logging.INFO, f"CENT:FLUSH_BUFFERS:Unable to flush buffers")
             return -1
 
     def comm_test(self):
@@ -92,23 +106,23 @@ class Centurion:
         command = "$HVERS ?\r"
         response = self.send_command(command)
         #response = self.read_response()
-        print(f"CENT:COMM_TEST:received:{response}")
+        self.log(logging.INFO, f"CENT:COMM_TEST:received:{response}")
         if response.startswith("$HVERS"):
-            print("CENT:COMM_TEST:PASSED OK!")
+            self.log(logging.INFO, "CENT:COMM_TEST:PASSED OK!")
             return 0
         else:
-            print("CENT:COMM_TEST:Failed")
+            self.log(logging.INFO, "CENT:COMM_TEST:Failed")
             return -2
 
     def set_parameter(self, parameter, value):
         parameter_set = self.send_command(f"{parameter} {value}")
         if parameter_set:
             preturn = parameter_set.split()
-            if len(preturn) == 2 and preturn[0] == f"{parameter}":
-                print(f"CENT:PARAMETER_SET:Parameter {preturn[0]}, value set: {preturn[1]}")
+            if len(preturn) == 2 and preturn[0] == f"{parameter}" and preturn[1] == f'{value}':
+                self.log(logging.INFO, f"CENT:PARAMETER_SET:Parameter {preturn[0]}, value set: {preturn[1]}")
                 return 0
             else:
-                print(f"CENT:PARAMETER_SET:ERROR:Unable to set parameter {preturn[0]}")
+                self.log(logging.INFO, f"CENT:PARAMETER_SET:ERROR:Unable to set parameter {preturn[0]}")
                 return -1
 
     def check_parameter(self, parameter):
@@ -116,44 +130,47 @@ class Centurion:
         if parameter_check:
             preturn = parameter_check.split()
             if len(preturn) == 2 and preturn[0] == f"{parameter}":
-                print(f"CENT:PARAMETER_CHECK:Parameter {preturn[0]}, value checked: {preturn[1]}")
+                self.log(logging.INFO, f"CENT:PARAMETER_CHECK:Parameter {preturn[0]}, value checked: {preturn[1]}")
                 return preturn[1]
             else:
-                print(f"CENT:PARAMETER_CHECK:ERROR:Unable to check parameter {preturn[0]}")
+                self.log(logging.INFO, f"CENT:PARAMETER_CHECK:ERROR:Unable to check parameter {preturn[0]}")
                 return -1
 
     def set_mode(self, freq = 100, diode = 1, qson= 0, qswitch = 1, dtrig = 1, qstrig = 1, dpw = 100, qsdelay = 145):
         
         try:
-            print("CENT:SET_MODE:Setting up Centurion Laser...")
-            print("CENT:SET_MODE:Going Standby...")
+            self.log(logging.INFO, "CENT:SET_MODE:Setting up Centurion Laser...")
+            self.log(logging.INFO, "CENT:SET_MODE:Going Standby...")
             self.send_command("$STANDBY")
-            #setting frequency (100 == 2Hz)
-            self.set_parameter("$DFREQ", freq)
-            #setting diodes (off = 0, enabled = 1) 
-            self.set_parameter("$DIODE", diode)
-            #setting Q-switch (off = 0, enabled = 1)
-            self.set_parameter("$QSON", qson)
-            #setting laser to be Q-switched (long pulse = 0, Q-switched = 1)
-            self.set_parameter("$QSWIT", qswitch)
-            #setting diode trigger in external mode (internal = 0, external = 1)
-            self.set_parameter("$DTRIG", dtrig)
-            #setting Q-swicth trigger to external mode (internal = 0, external = 1)
-            self.set_parameter("$QSTRI", qstrig)
-            #setting diodes pulse (energy of the laser)
-            self.set_parameter("$DPW", dpw)
-            #setting delay for Q-switch (relevant only for internal trigger)
-            self.set_parameter("$QSDEL", qsdelay)
-            print("CENT:SET_MODE:Set up complete")
-            return 0 
+            
+            for _ in range(3):
+                #setting frequency (100 == 2Hz)
+                self.set_parameter("$DFREQ", freq)
+                #setting diodes (off = 0, enabled = 1) 
+                self.set_parameter("$DIODE", diode)
+                #setting Q-switch (off = 0, enabled = 1)
+                self.set_parameter("$QSON", qson)
+                #setting laser to be Q-switched (long pulse = 0, Q-switched = 1)
+                self.set_parameter("$QSWIT", qswitch)
+                #setting diode trigger in external mode (internal = 0, external = 1)
+                self.set_parameter("$DTRIG", dtrig)
+                #setting Q-swicth trigger to external mode (internal = 0, external = 1)
+                self.set_parameter("$QSTRI", qstrig)
+                #setting diodes pulse (energy of the laser)
+                self.set_parameter("$DPW", dpw)
+                #setting delay for Q-switch (relevant only for internal trigger)
+                self.set_parameter("$QSDEL", qsdelay)
+                if self.status() == 0x7E:
+                    self.log(logging.INFO, "set up complete")
+                    return 0
         except Exception as e:
-            print(f"CENT:SET_MODE:ERROR:Some problem occurred:{e}")
+            self.log(logging.INFO, f"CENT:SET_MODE:ERROR:Some problem occurred:{e}")
             return -1 
         
     def check_mode(self):
         self.flush_buffers()
         try:
-            print("CENT:CHECK_MODE:Checking values:")
+            self.log(logging.INFO, "CENT:CHECK_MODE:Checking values:")
             self.check_parameter("$DFREQ")
             self.check_parameter("$DIODE")
             self.check_parameter("$QSON")
@@ -164,7 +181,7 @@ class Centurion:
             self.check_parameter("$QSDEL")
             return 0
         except Exception as e:
-            print("CENT:CHECK_MODE:ERROR:Some problem occurred")
+            self.log(logging.INFO, "CENT:CHECK_MODE:ERROR:Some problem occurred")
             return -2
 
     def read_status(self):
@@ -176,10 +193,10 @@ class Centurion:
                 try:
                     self.state = int(parts[1], 16) 
                 except ValueError:
-                    print(f"CENT:READ_STATUS:ERROR:Bytes received: {status}")
+                    self.log(logging.INFO, f"CENT:READ_STATUS:ERROR:Bytes received: {status}")
                     return -1
             else:
-                print(f"CENT:READ_STATUS:ERROR:WRONG STRING RECEIVED:Bytes received: {status}")  
+                self.log(logging.INFO, f"CENT:READ_STATUS:ERROR:WRONG STRING RECEIVED:Bytes received: {status}")  
                 return -2  
 
     def status(self):
@@ -201,73 +218,73 @@ class Centurion:
                     self.hbyte1 =  int(parts[3], 16) 
                     self.hbyte2 = int(parts[4], 16) 
                     self.hbyte3 = int(parts[5], 16)
-                    print(f"CENT:READ_BYTES:{self.sbyte}, {self.hbyte1}, {self.hbyte2}, {self.hbyte3}")
+                    self.log(logging.INFO, f"CENT:READ_BYTES:{self.sbyte}, {self.hbyte1}, {self.hbyte2}, {self.hbyte3}")
                 except ValueError:
-                    print(f"CENT:READ_BYTES:ERROR:Bytes received: {status}")
+                    self.log(logging.INFO, f"CENT:READ_BYTES:ERROR:Bytes received: {status}")
                     return -1
             else:
-                print(f"CENT:READ_BYTES:ERROR:WRONG STRING RECEIVED:Bytes received: {status}")  
+                self.log(logging.INFO, f"CENT:READ_BYTES:ERROR:WRONG STRING RECEIVED:Bytes received: {status}")  
                 return -2  
 
-        print("CENT:READ_BYTES:Requesting shot counter")
+        self.log(logging.INFO, "CENT:READ_BYTES:Requesting shot counter")
         response = self.send_command("$SHOT ?")
         if response:
-            print(f"CENT:READ_BYTES:Shots counter:{response}")
+            self.log(logging.INFO, f"CENT:READ_BYTES:Shots counter:{response}")
         
-        print("CENT:READ_BYTES:Requesting User shots counter")
+        self.log(logging.INFO, "CENT:READ_BYTES:Requesting User shots counter")
         response = self.send_command("$USHOT ?")
         if response:
-            print(f"CENT:READ_BYTES:User shots counter:{response}")
+            self.log(logging.INFO, f"CENT:READ_BYTES:User shots counter:{response}")
 
         return 0     
 
     def standby(self):
         self.flush_buffers()
         try:
-            print("CENT:STANDBY:Going Standby...")
+            self.log(logging.INFO, "CENT:STANDBY:Going Standby...")
             standby = self.send_command('$STAND')
             if standby:
-                print(f"CENT:STANDBY:Standby:{standby}")
+                self.log(logging.INFO, f"CENT:STANDBY:Standby:{standby}")
         except Exception as e:
-            print(f"CENT:STANDBY:ERROR:Some problem occurred: {e}")
+            self.log(logging.INFO, f"CENT:STANDBY:ERROR:Some problem occurred: {e}")
             return -1
           
     def warmup(self):
         self.flush_buffers()
         try:
-            print("CENT:WARMUP:Going Standby...")
+            self.log(logging.INFO, "CENT:WARMUP:Going Standby...")
             standby = self.send_command('$STAND')
             if standby: 
-                print(f"CENT:WARMUP:Standby:{standby}")
+                self.log(logging.INFO, f"CENT:WARMUP:Standby:{standby}")
 
-            print("CENT:WARMUP:Turning On Diodes...")
+            self.log(logging.INFO, "CENT:WARMUP:Turning On Diodes...")
             diode_on = self.send_command('$DIODE 1')
             if diode_on:
-                print(f"CENT:WARMUP:Diodes:{diode_on}")
+                self.log(logging.INFO, f"CENT:WARMUP:Diodes:{diode_on}")
             
-            print("CENT:WARMUP:Q-Switch enabling")
+            self.log(logging.INFO, "CENT:WARMUP:Q-Switch enabling")
             q_switch = self.send_command("$QSON 1")
             if q_switch:
-                print(f"CENT:WARMUP:Q-Swithc:{q_switch}")
+                self.log(logging.INFO, f"CENT:WARMUP:Q-Swithc:{q_switch}")
 
             self.read_bytes()
             return 0 
         except Exception as e:
-            print(f"CENT:WARMUP:ERROR:Some problem occurred: {e}")
+            self.log(logging.INFO, f"CENT:WARMUP:ERROR:Some problem occurred: {e}")
             return -1
 
     def sleep(self):
         self.flush_buffers()
         try:
-            print("CENT:SLEEP:Sending Centurion to sleep")
+            self.log(logging.INFO, "CENT:SLEEP:Sending Centurion to sleep")
 
             sleep = self.send_command("$STOP ?")
             if sleep:
-                print(f"CENT:SLEEP:Centurion sent to sleep: {sleep}")
-                print('ZZZZ...ZZZZ...ZZZZ...')
+                self.log(logging.INFO, f"CENT:SLEEP:Centurion sent to sleep: {sleep}")
+                self.log(logging.INFO, 'ZZZZ...ZZZZ...ZZZZ...')
             return 0
         except Exception as e:
-            print(f"CENT:SLEEP:ERROR:Centurion doesn't want to sleep")
+            self.log(logging.INFO, f"CENT:SLEEP:ERROR:Centurion doesn't want to sleep")
             return -1
             
     def check_temps(self):
@@ -282,14 +299,14 @@ class Centurion:
                     self.dump_temp = int(parts[2])
                     self.plate_temp = int(parts[3])
 
-                    print(f"CENT:CHECK_TEMPS:TEMPS:head:{self.head_temp}, dump:{self.dump_temp}, plate:{self.plate_temp}")
+                    self.log(logging.INFO, f"CENT:CHECK_TEMPS:TEMPS:head:{self.head_temp}, dump:{self.dump_temp}, plate:{self.plate_temp}")
                     return 0
 
                 except ValueError:
-                    print(f"CENT:CHECK_TEMPS:ERROR:BYTE RECEIVED {temps}")
+                    self.log(logging.INFO, f"CENT:CHECK_TEMPS:ERROR:BYTE RECEIVED {temps}")
                     return -1
             else:
-                print(f"CENT:CHECK_TEMPS:ERROR:Bytes received: {temps}")  
+                self.log(logging.INFO, f"CENT:CHECK_TEMPS:ERROR:Bytes received: {temps}")  
                 return -2        
 
     def temperature(self):
@@ -318,13 +335,13 @@ class Centurion:
                 if parts == 2 and parts[0]== 'DPW':
                     try:
                         self.pulse_wdth = parts[1]
-                        print(f"CENT:CHECK_PULSE_WIDTH:Pulse width: {self.pulse_wdth}")
+                        self.log(logging.INFO, f"CENT:CHECK_PULSE_WIDTH:Pulse width: {self.pulse_wdth}")
                         return(self.pulse_wdth)
                     except ValueError:
-                        print(f"CENT:CHECK_PULSE_WIDTH:ERROR:Bytes received: {parts}")
+                        self.log(logging.INFO, f"CENT:CHECK_PULSE_WIDTH:ERROR:Bytes received: {parts}")
                         return -1
         except Exception as e:
-            print(f"CENT:CHECK_PULSE_WIDTH:ERROR:Some problem occurred: {e}")
+            self.log(logging.INFO, f"CENT:CHECK_PULSE_WIDTH:ERROR:Some problem occurred: {e}")
 
     def set_pwdth(self, pwd):
         self.flush_buffers()
@@ -357,11 +374,11 @@ if __name__ == "__main__":
 #        try:
 #            pulse_width = self.send_command(f"$DPW {pwd}")
 #            if pulse_width:
-#                print(f"CENT:SET_PULSE_WIDTH:Pulse width set: {pulse_width}")
+#                self.log(logging.INFO, f"CENT:SET_PULSE_WIDTH:Pulse width set: {pulse_width}")
 #
 #                self.check_pwdth()
 #        except Exception as e:
-#            print(f"CENT:SET_PULSE_WIDTH:ERROR:Some problem occurred: {e}")
+#            self.log(logging.INFO, f"CENT:SET_PULSE_WIDTH:ERROR:Some problem occurred: {e}")
 #            return -1
 #
 #    def set_mode_old(self):
@@ -371,7 +388,7 @@ if __name__ == "__main__":
 #            self.flush_buffers()
 #            self.conf_file = '' #CERCARE FILE
 #            with open(self.conf_file, "r") as read_conf:
-#                print(f"CENT:SET_MODE:file {read_conf} open")
+#                self.log(logging.INFO, f"CENT:SET_MODE:file {read_conf} open")
 #
 #                for line in read_conf:
 #                    line=line.strip()
@@ -381,50 +398,50 @@ if __name__ == "__main__":
 #                    if len(parts) <2:
 #                        continue
 #                    
-#                    print(f"CENT:SET_MODE:command {line}")
+#                    self.log(logging.INFO, f"CENT:SET_MODE:command {line}")
 #                    command = self.send_command(line)
 #                    if command:
-#                        print(f"CENT:SET_MODE:command {command} received")
+#                        self.log(logging.INFO, f"CENT:SET_MODE:command {command} received")
 #
 #                    inquiry = read_conf.readline().strip()
-#                    print(f"CENT:SET_MODE:command {inquiry}")
+#                    self.log(logging.INFO, f"CENT:SET_MODE:command {inquiry}")
 #                    response = self.send_command(inquiry)
 #                    if response:
-#                        print(f"CENT:SET_MODE:command {inquiry} received")
+#                        self.log(logging.INFO, f"CENT:SET_MODE:command {inquiry} received")
 #
 #                    comment = read_conf.readline().strip()
-#                    print(f"CENT:SET_MODE:{comment}")          
+#                    self.log(logging.INFO, f"CENT:SET_MODE:{comment}")          
 #            
 #            self.flush_buffers()
 #            seriall = self.send_command('$SERIA ?')
 #            if seriall:
-#                print(f"CENT:SET_MODE:SERIAL NUMBER:{seriall}")
+#                self.log(logging.INFO, f"CENT:SET_MODE:SERIAL NUMBER:{seriall}")
 #
 #            self.flush_buffers()
 #            shot_count = self.send_command('$SHOT ?')
 #            if shot_count: 
-#                print(f"CENT:SET_MODE:SHOT COUNT:{shot_count}")
+#                self.log(logging.INFO, f"CENT:SET_MODE:SHOT COUNT:{shot_count}")
 #
 #            self.flush_buffers()
 #            user_shot = self.send_command('$USHOT ?')
 #            if user_shot:
-#                print(f"CENT:SET_MODE:USER CONTROLLED SHOT COUNTER:{user_shot}")
+#                self.log(logging.INFO, f"CENT:SET_MODE:USER CONTROLLED SHOT COUNTER:{user_shot}")
 #
 #            self.flush_buffers()
 #            h_vers= self.send_command('$HVERS ?')
 #            if h_vers:
-#                print(f"CENT:SET_MODE:HARDWARE VERSION:{h_vers}")
+#                self.log(logging.INFO, f"CENT:SET_MODE:HARDWARE VERSION:{h_vers}")
 #
 #            self.flush_buffers()
 #            temps = self.send_command('$TEMPS ?')
 #            if temps:
-#                print(f"CENT:SET_MODE:TEMPERATURES:{temps}")
+#                self.log(logging.INFO, f"CENT:SET_MODE:TEMPERATURES:{temps}")
 #
 #        except FileNotFoundError:
-#            print(f"CENT:SET_MODE:ERROR:file {self.conf_file} not found")
+#            self.log(logging.INFO, f"CENT:SET_MODE:ERROR:file {self.conf_file} not found")
 #
 #        except serial.SerialException as e:
-#            print(f"CENT:SET_MODE:serial error: {e}")
+#            self.log(logging.INFO, f"CENT:SET_MODE:serial error: {e}")
 #
 #    def check_qs_delay_old(self):
 #
@@ -439,14 +456,14 @@ if __name__ == "__main__":
 #                    if parts == 2 and parts[0]== "QSDELAY":
 #                        try:
 #                            parts[1] = self.qsdelay
-#                            print(f"CENT:CHECHK_QSWITCH_DELAY:{self.qsdelay}")
+#                            self.log(logging.INFO, f"CENT:CHECHK_QSWITCH_DELAY:{self.qsdelay}")
 #                            return(self.qsdelay)
 #
 #                        except ValueError:
 #                            
-#                            print(f"CENT:CHECK_QSWITCH_DELAY:ERROR:Bytes received: {delay}")
+#                            self.log(logging.INFO, f"CENT:CHECK_QSWITCH_DELAY:ERROR:Bytes received: {delay}")
 #                            return -1
 #
 #            except Exception as e:
-#                print(f"CENT_QSWITCH_DELAY:ERROR:Some problem occurred:{e}")
+#                self.log(logging.INFO, f"CENT_QSWITCH_DELAY:ERROR:Some problem occurred:{e}")
 #                return 0 

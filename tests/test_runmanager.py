@@ -5,15 +5,16 @@ import time
 
 from lib.RunManager import RunManager, RunType
 
-rm = RunManager(None)
-rm.start(RunType.RAMAN)
-while not rm.idle():
-    rm.status()
+rm = RunManager(None, None)
+
+rm.submit(RunType.RAMAN)
+while rm.is_running():
+    rm.print_status()
     time.sleep(1)
 
-rm.start(RunType.FD)
-while not rm.idle():
-    rm.status()
+rm.submit(RunType.FD)
+while rm.is_running():
+    rm.print_status()
     time.sleep(1)
 
 

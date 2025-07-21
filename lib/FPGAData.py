@@ -37,17 +37,26 @@ class FPGAData:
             start_idx = self.buffer.find(self.HEADER.encode())
             if start_idx != -1 and len(self.buffer) >= start_idx + self.PACKET_SIZE:
                 packet = self.buffer[start_idx:start_idx + self.PACKET_SIZE]
-                buffer = self.buffer[start_idx + self.PACKET_SIZE:]  
-                
+
                 if packet[-5:-1] == self.FOOTER.encode():
-                    data = packet[5:-5]  
-                    values = data.decode().split('\r')[:-1]
-                    self.seconds=(int(values[0],16)<<16)+int(values[1],16)
-                    self.counter=(int(values[2],16)<<16)+int(values[3],16)*10
-                    self.lenght=(int(values[4],16)<<16)+int(values[5],16)*10
-                    print(self.seconds, self.counter, self.lenght)
-                    
+                    data = packet[5:-5]
+                    try:
+                        values = data.decode().split('\r')[:-1]
+                        self.seconds = (int(values[0], 16) << 16) + int(values[1], 16)
+                        self.counter = (int(values[2], 16) << 16) + int(values[3], 16) * 10
+                        #self.length = (int(values[4], 16) << 16) + int(values[5], 16) * 10
+                        self.pps_delta = (int(values[4], 16) - 32767) * 10
+                        self.counter_pulses = int(values[5], 16)
+                        return self.seconds, self.counter, self.pps_delta, self.counter_pulses
+                    except (IndexError, ValueError, UnicodeDecodeError) as e:
+                        print("Errore nel parsing dei dati:", e)
                 else:
                     print("Errore: pacchetto non valido!")
-            
-            #return self.seconds, self.counter, self.lenght
+
+            # Se il pacchetto non è valido o non è stato trovato
+            self.seconds = 0
+            self.counter = 0
+            self.pps_delta = 0
+            self.counter_pulses=0
+                
+            return self.seconds, self.counter, self.pps_delta, self.counter_pulses

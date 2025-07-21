@@ -3,6 +3,7 @@
 import sys
 import os
 import threading
+import multiprocessing
 import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from lib.FPGADevice import FPGADevice
@@ -50,16 +51,28 @@ print("test mutual exclusion")
 
 def func():
     for _ in range(100):
-        print(f'thread_id: {threading.get_ident()} - {hex(fp.read_register("unixtime"))}')
+        print(f'{hex(fp.read_register("unixtime"))}')
         time.sleep(0.01)
 
+p1 = multiprocessing.Process(target=func)
+p2 = multiprocessing.Process(target=func)
 thr1 = threading.Thread(target=func)
 thr2 = threading.Thread(target=func)
+
+print("- start process #1")
+p1.start()
+print("- start process #2")
+p2.start()
 
 print("- start thread #1")
 thr1.start()
 print("- start thread #2")
 thr2.start()
+
+p1.join()
+print("- end process #1")
+p2.join()
+print("- end process #2")
 
 thr1.join()
 print("- end thread #1")

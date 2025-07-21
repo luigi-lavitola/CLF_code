@@ -7,6 +7,7 @@ from lib.VXM import VXM
 from lib.Radiometer import Radiometer3700, RadiometerOphir
 from lib.Centurion import Centurion
 from lib.FPGADevice import FPGADevice
+from lib.FPGAData import FPGAData
 
 class DeviceCollection:
     def __init__(self):
@@ -16,6 +17,7 @@ class DeviceCollection:
         self.radiometers = {}
         self.fpga = FPGADevice("/dev/runcontrol")
         self.laser = Centurion("/dev/ttyr01")
+        self.data = FPGAData("/dev/data0")
 
     def init(self, cfg):
         # outlets
