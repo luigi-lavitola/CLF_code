@@ -57,6 +57,7 @@ class RunManager:
         self.thr = threading.Thread(target=self.scheduler)
         self.thr.start()
         self.loop = True
+        self.abort_in_progress = False
 
         self.hk.subscribe(self.alarm_handler)
 
@@ -143,11 +144,17 @@ class RunManager:
     def alarm_handler(self, msg):
         if self.job_is_running():
             self.log(logging.INFO, f"alarm received during run: {msg}")
-            self.job.terminate()
-            self.log(logging.INFO, f"run aborted")
-            self.log(logging.INFO, f"start devices shutdown")
-            self.run.abort()
-            self.log(logging.INFO, f"finish devices shutdown")
+            if not self.abort_in_progress:
+                self.log(logging.INFO, f"start alarm handling")
+                self.abort_in_progress = True
+                self.job.terminate()
+                self.log(logging.INFO, f"run aborted")
+                self.log(logging.INFO, f"start devices shutdown")
+                self.run.abort()
+                self.log(logging.INFO, f"finish devices shutdown")
+                self.abort_in_progress = False
+            else:
+                self.log(logging.INFO, f"alarm handling in progress")
 
     def print_status(self):
         if self.job_is_running():
