@@ -23,6 +23,12 @@ print(hex(fp.read_address(27)))
 print("4. read register unixtime (32bit)")
 print(hex(fp.read_register("unixtime")))
 
+print("4.1 write pulse period 3_000_000_000 (32bit)")
+fp.write_register('pulse_period', 3_000_000_000)
+
+print("4.2 read pulse period (32bit)")
+print(hex(fp.read_register("pulse_period")))
+
 print("5. read DIO rain")
 print(fp.read_dio("rain"))
 
@@ -44,9 +50,10 @@ fp.write_dio("inverter", 1)
 print("10. read pps_ok flag")
 print(fp.read_bit("pps_ok"))
 
-print("9. turn off DIO inverter")
+print("11. turn off DIO inverter")
 fp.write_dio("inverter", 0)
 
+"""
 print("test mutual exclusion")
 
 def func():
@@ -78,5 +85,6 @@ thr1.join()
 print("- end thread #1")
 thr2.join()
 print("- end thread #2")
+"""
 
 fp.close()
