@@ -9,6 +9,11 @@ from lib.Configuration import Configuration
 from lib.DeviceCollection import DeviceCollection
 from lib.RunManager import RunManager, RunType
 
+from lib.FPGAData import FPGAData
+
+data = FPGAData("/dev/data0")
+
+
 ### HELPERS
 
 def WAIT_UNTIL_TRUE(func):
@@ -26,17 +31,17 @@ dc.init(cfg)
 
 ### 
 
-nshots = 75000
-#nshots = 1000
+#nshots = 75000
+nshots = 20
 
 ###
 
-print("configure FPGA registers for RAMAN run...")
-dc.fpga.write_register('pps_delay', 0)
+print("configure FPGA registers for CLF run...")
+dc.fpga.write_register('pps_delay', 0)         #0 ms
 dc.fpga.write_bit('laser_en', 1)
 dc.fpga.write_register('pulse_width', 10_000)  # 100 us
 dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
-dc.fpga.write_register('pulse_period', 1_000_000) # 10 ms
+dc.fpga.write_register('pulse_period', 100_000_000) # 1000 ms 1 hz
 dc.fpga.write_register('shots_num', nshots)
 
 dc.fpga.write_register('mux_bnc_0', 0b0010)
@@ -88,37 +93,40 @@ print("radiometer 3700 setup...")
 dc.get_radiometer('Rad1').setup()
 print("done")
 
+print("radiometer 3700 setup...")
+dc.get_radiometer('Rad2').setup()
+print("done")
+
+print("radiometer 3700 setup...")
+dc.get_radiometer('Rad3').setup()
+print("done")
+
 ##
 
-print("select RAMAN beam...")
-dc.fpga.write_dio('flipper_raman', True)
+print("select vertical beam...")
+dc.fpga.write_dio('flipper_raman', False)
 print("done")
 
-print("turn on RAMAN DAQ...")
-WAIT_UNTIL_TRUE(dc.get_outlet("RAMAN_inst").on)
-print("done")
 
-print("check rain and cover status...")
-if dc.fpga.read_dio('rain') == (not dc.fpga.read_dio('norain')):
-    if dc.fpga.read_dio('rain'):
-        print("IT IS RAINING... ALARM!")
-print("done")
 
-if dc.fpga.read_dio('cover_raman_open') == 1 \
-    and dc.fpga.read_dio('cover_raman_closed') == 1:
-    print("COVER ERROR!!!")
+print("UPPER MOTORS INITIALIZATION:STARTING")
+dc.get_motor("UpNorthSouth").set_model(1)
+dc.get_motor("UpNorthSouth").set_acc(2000)
+dc.get_motor("UpEastWest").set_model(1)
+dc.get_motor("UpEastWest").set_acc(2000)
+print("UPPER MOTORS INITIALIZATION:COMPLETE")
 
-print("open cover...")
-WAIT_UNTIL_TRUE(dc.get_outlet("RAMAN_cover").on)
-print("done")
+print("LOWER MOTORS INITIALIZATION:STARTING")
+dc.get_motor("LwNorthSouth").set_model(1)
+dc.get_motor("LwNorthSouth").set_acc(2000)
+dc.get_motor("LwPolarizer").set_model(1)
+dc.get_motor("LwPolarizer").set_acc(2000)
+print("LOWER MOTORS INITIALIZATION:COMPLETE")
 
-print("wait cover opening...")
-while dc.fpga.read_dio('cover_raman_open') == dc.fpga.read_dio('cover_raman_closed'):
-   time.sleep(1)
-   print('.', end='')
-   sys.stdout.flush() 
-print("done")
-
+print("MOVING RADIOMETER 3 IN POSITION:STARTING")
+dc.get_motor("UpNorthSouth").move_ABS(33250)
+dc.get_motor("UpEastWest").move_ABS(4470)
+print("MOVING RADIOMETER 3 IN POSITION:COMPLETE")
 
 print("wait for laser fire auth...")
 while not dc.laser.fire_auth():
@@ -128,67 +136,65 @@ print("set laser in fire mode...")
 dc.laser.fire()
 print("done")
 
-print("start RAMAN run...")
+print("start ECAL run at 140us...")
 dc.fpga.write_dio('laser_en', 1)
 dc.fpga.write_dio('laser_start', 1)
 
-hostname = "192.168.218.191"
-username = "root"
-password = "ariag25"
-
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect(hostname, username=username, password=password)
-
-# start command and get process PID
-stdin, stdout, stderr = client.exec_command("./start12 >& /media/data/rdata/start12.log & echo $!")
-pid = stdout.read().decode().strip()
-print(f"PID: {pid}")
-print("done")
-
-print("wait for laser shots end...")
-while True:
-    ns = dc.fpga.read_register('shots_cnt')
-    if ns == nshots:
-        break
-    print(f'shots: {ns}, rain: {dc.fpga.read_dio("rain")}')
-    time.sleep(1) 
-    # check rain sensor
-print("done")
-
-print("waiting for RAMAN DAQ process to finish...")
-while True:
-    stdin, stdout, stderr = client.exec_command(f"ps -p {pid} -o comm=")
-    process_name = stdout.read().decode().strip()
-
-    if not process_name:
-        break
-    else:
-        time.sleep(1)
-        print('.', end='')
-        sys.stdout.flush() 
-print("done")
-
-## 
-
-print("unselect RAMAN beam...")
-dc.fpga.write_dio('flipper_raman', False)
-print("done")
+for i in range(nshots):
+    power=dc.get_radiometer('Rad3').read_power()
+    print(f'power {i} shot: {power}')
+    data.read_event()
 
 print("laser standby...")
 dc.laser.standby()
 print("done")
 
-print("close cover...")
-WAIT_UNTIL_TRUE(dc.get_outlet("RAMAN_cover").off)
+print("MOVING RADIOMETER 3 IN HOME:STARTING")
+dc.get_motor("UpNorthSouth").move_ABS0()
+dc.get_motor("UpEastWest").move_ABS0()
+print("MOVING RADIOMETER 3 IN HOME:COMPLETE")
+
+
+#switching to 100 us energy
+dc.fpga.write_register('pulse_energy', 16_400) # 140 us = 174 us, maximum
+
+print("laser setup...")
+dc.laser.set_mode(qson = 1, dpw = 100)
 print("done")
 
-print("wait cover closing...")
-while dc.fpga.read_dio('cover_raman_open') == dc.fpga.read_dio('cover_raman_closed'):
+print("MOVING RADIOMETER 2 IN POSITION:STARTING")
+dc.get_motor("UpNorthSouth").move_ABS(1300)
+dc.get_motor("UpEastWest").move_ABS(20200)
+print("MOVING RADIOMETER 2 IN POSITION:COMPLETE")
+
+print("wait for laser fire auth...")
+while not dc.laser.fire_auth():
+    print(dc.laser.temperature())
     time.sleep(1)
-    print('.', end='')
-    sys.stdout.flush() 
+print("set laser in fire mode...")
+dc.laser.fire()
 print("done")
+
+print("start ECAL run at 100us...")
+dc.fpga.write_dio('laser_en', 1)
+dc.fpga.write_dio('laser_start', 1)
+
+for i in range(nshots):
+    power=dc.get_radiometer('Rad2').read_power()
+    print(f'power {i} shot: {power}')
+    data.read_event()
+
+print("laser standby...")
+dc.laser.standby()
+print("done")
+
+print("MOVING RADIOMETER 2 IN HOME:STARTING")
+dc.get_motor("UpNorthSouth").move_ABS0()
+dc.get_motor("UpEastWest").move_ABS0()
+print("MOVING RADIOMETER 2 IN HOME:COMPLETE")
+
+
+
 
 print("turn off Radiometer outlet... ")
 WAIT_UNTIL_TRUE(dc.get_outlet('radiometer').off)

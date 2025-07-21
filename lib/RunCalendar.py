@@ -56,26 +56,27 @@ class RunCalendar:
 
     def get_timetable_for_entry(self, entry):
         ttable = []
-        ttable.append(RunEntry(entry.start_date - timedelta(minutes=30), runtype=RunType.RAMAN, first=True))
-        ttable.append(RunEntry(datetime(
-            year=entry.end_date.year, 
-            month=entry.end_date.month,
-            day=entry.end_date.day,
-            hour=4,
-            minute=30), runtype=RunType.RAMAN)
-        )
-        ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN, last=True))
-
-        start_date = entry.start_date
-        while start_date.minute != 0:
-            start_date += timedelta(minutes=1)
-        start_time = start_date
-        while start_time <= entry.end_date:
-            if start_date.minute == 0:
-                ttable.append(RunEntry(start_time, runtype=RunType.CELESTE))
-            start_time += timedelta(hours=1)
-
+        sorted_ttable=[]
         if entry.has_fd_run:
+            ttable.append(RunEntry(entry.start_date - timedelta(minutes=30), runtype=RunType.RAMAN, first=True))
+            ttable.append(RunEntry(datetime(
+                year=entry.end_date.year, 
+                month=entry.end_date.month,
+                day=entry.end_date.day,
+                hour=4,
+                minute=30), runtype=RunType.RAMAN)
+            )
+            ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN, last=True))
+
+            start_date = entry.start_date
+            while start_date.minute != 0:
+                start_date += timedelta(minutes=1)
+            start_time = start_date
+            while start_time <= entry.end_date:
+                if start_date.minute == 0:
+                    ttable.append(RunEntry(start_time, runtype=RunType.CELESTE))
+                start_time += timedelta(hours=1)
+
             start_date = entry.start_date
             # find first valid time 
             while start_date.minute not in [5, 20, 35, 50]:
@@ -89,10 +90,10 @@ class RunCalendar:
                 ttable.append(RunEntry(start_time, runtype=RunType.FD))
                 start_time += timedelta(minutes=15)
 
-        sorted_ttable = sorted(ttable, key=lambda x: x.start_time)
+            sorted_ttable = sorted(ttable, key=lambda x: x.start_time)
 
-        sorted_ttable[0].first = True
-        sorted_ttable[-1].last = True
+            sorted_ttable[0].first = True
+            sorted_ttable[-1].last = True
 
         return sorted_ttable
             
