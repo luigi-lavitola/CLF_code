@@ -37,7 +37,7 @@ nshots = 20
 ###
 
 print("configure FPGA registers for CLF run...")
-dc.fpga.write_register('pps_delay', 0)         #250 ms
+dc.fpga.write_register('pps_delay', 0)         #0 ms
 dc.fpga.write_bit('laser_en', 1)
 dc.fpga.write_register('pulse_width', 10_000)  # 100 us
 dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
