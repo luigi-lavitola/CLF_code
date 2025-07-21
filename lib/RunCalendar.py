@@ -66,7 +66,9 @@ class RunCalendar:
                 hour=4,
                 minute=30), runtype=RunType.RAMAN)
             )
-            ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN, last=True))
+            ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN))
+
+            ttable.append(RunEntry(entry.end_date + timedelta(minutes=60), runtype=RunType.CALIB, last=True))
 
             start_date = entry.start_date
             while start_date.minute != 0:
