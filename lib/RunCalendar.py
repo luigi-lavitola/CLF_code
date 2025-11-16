@@ -23,8 +23,10 @@ class RunEntry:
 
 class RunCalendar:
 
-    def __init__(self, file_path):
+    def __init__(self, file_path, params):
         self.file_path = file_path
+        self.params = params
+        self.identity = self.params['identity']
         # run_entries contains parsed rows (CalendarEntry) from calendar file (.txt)
         self.run_entries = []
         self.parse_file()
@@ -58,17 +60,20 @@ class RunCalendar:
         ttable = []
         sorted_ttable=[]
         if entry.has_fd_run:
-            ttable.append(RunEntry(entry.start_date - timedelta(minutes=30), runtype=RunType.RAMAN, first=True))
-            ttable.append(RunEntry(datetime(
-                year=entry.end_date.year, 
-                month=entry.end_date.month,
-                day=entry.end_date.day,
-                hour=4,
-                minute=30), runtype=RunType.RAMAN)
-            )
-            ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN))
+            if('raman' in [s.lower() for s in self.params[self.identity]['run_list']]):
+                ttable.append(RunEntry(entry.start_date - timedelta(minutes=30), runtype=RunType.RAMAN, first=True))
+                ttable.append(RunEntry(datetime(
+                    year=entry.end_date.year, 
+                    month=entry.end_date.month,
+                    day=entry.end_date.day,
+                    hour=4,
+                    minute=30), runtype=RunType.RAMAN)
+                )
+                ttable.append(RunEntry(entry.end_date + timedelta(minutes=30), runtype=RunType.RAMAN))
+            
 
-            ttable.append(RunEntry(entry.end_date + timedelta(minutes=60), runtype=RunType.CALIB, last=True))
+            if('calib' in [s.lower() for s in self.params[self.identity]['run_list']]):
+                ttable.append(RunEntry(entry.end_date + timedelta(minutes=60), runtype=RunType.CALIB, last=True))
 
             start_date = entry.start_date
             while start_date.minute != 0:
@@ -76,12 +81,13 @@ class RunCalendar:
             start_time = start_date
             while start_time <= entry.end_date:
                 if start_date.minute == 0:
-                    ttable.append(RunEntry(start_time, runtype=RunType.CELESTE))
+                    if('tank' in [s.lower() for s in self.params[self.identity]['run_list']]):
+                        ttable.append(RunEntry(start_time, runtype=RunType.TANK))
                 start_time += timedelta(hours=1)
 
             start_date = entry.start_date
             # find first valid time 
-            while start_date.minute not in [5, 20, 35, 50]:
+            while start_date.minute not in self.params[self.identity]['start_minutes']:
                 start_date += timedelta(minutes=1)
 
             start_time = start_date
@@ -89,7 +95,8 @@ class RunCalendar:
                 if start_time.strftime("%H:%M") == "04:35" or start_time.strftime("%H:%M") == "04:50":
                     start_time += timedelta(minutes=15)
                     continue
-                ttable.append(RunEntry(start_time, runtype=RunType.FD))
+                if('fd' in [s.lower() for s in self.params[self.identity]['run_list']]):
+                    ttable.append(RunEntry(start_time, runtype=RunType.FD))
                 start_time += timedelta(minutes=15)
 
             sorted_ttable = sorted(ttable, key=lambda x: x.start_time)

@@ -17,11 +17,13 @@ from lib.Run import *
 
 class RunManager:
 
-    def __init__(self, dc : DeviceCollection, hk : HouseKeeping):
+    def __init__(self, dc : DeviceCollection, hk : HouseKeeping, params):
         self.dc = dc
         self.hk = hk
+        self.params = params
+        self.identity = self.params['identity']
 
-        self.rc = RunCalendar('docs/ALLFDCalendar.txt')
+        self.rc = RunCalendar('docs/ALLFDCalendar.txt', self.params)
 
         self.runs = []
         # fetch runs up to 1 day before 
@@ -36,7 +38,7 @@ class RunManager:
         #self.runs.append(RunEntry(datetime.datetime.now() + datetime.timedelta(minutes=3), runtype="mock", last=True))
         # test - remove
 
-        # sort list of run an perform precise time alignment
+        # sort list of run and perform precise time alignment
         self.runlist = sorted(self.runs, key=lambda x: x.start_time)
         self.runlist = [run for run in self.runlist if run.start_time > datetime.datetime.now()]
 
@@ -106,13 +108,13 @@ class RunManager:
                     self.run = RunFD(self.dc)
                 elif self.runentry.runtype == RunType.RAMAN:
                     #self.log(logging.INFO, "skipping Raman run for debug reasons") #self.run = RunRaman(self.dc)
-                    self.run= RunRaman(self.dc)
-                elif self.runentry.runtype == RunType.CELESTE:
-                    self.run = RunCeleste(self.dc)
+                    self.run = RunRaman(self.dc, self.params)
+                elif self.runentry.runtype == RunType.TANK:
+                    self.run = RunTank(self.dc, self.params)
                 elif self.runentry.runtype == RunType.CALIB:
-                    self.run = RunCalib(self.dc)
+                    self.run = RunCalib(self.dc, self.params)
                 elif self.runentry.runtype == RunType.MOCK:
-                    self.run = RunMock(self.dc)
+                    self.run = RunMock(self.dc, self.params)
 
                 if source == 'cli':     # run started from command line interface
                     self.job = multiprocessing.Process(target=self.run.execute)

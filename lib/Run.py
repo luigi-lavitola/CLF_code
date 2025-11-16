@@ -12,15 +12,16 @@ from lib.Helpers import *
 class RunType(Enum):
     RAMAN = 1,
     FD = 2,
-    CELESTE = 3,
+    TANK = 3,
     CALIB = 4,
     MOCK = 5,
 
-
 class RunBase:
 
-    def __init__(self, dc : DeviceCollection):
+    def __init__(self, dc : DeviceCollection, params):
         self.dc = dc
+        self.params = params
+        self.identity = self.params['identity']
 
         self.logger = logging.getLogger("run")
         self.logger.setLevel(logging.INFO)
@@ -53,8 +54,8 @@ class RunBase:
 
 class RunMock(RunBase):
 
-    def __init__(self, dc : DeviceCollection):
-        super().__init__(dc) 
+    def __init__(self, dc : DeviceCollection, params):
+        super().__init__(dc, params) 
 
     def prepare(self):
         self.log(logging.INFO, "prepare")
@@ -73,8 +74,8 @@ class RunMock(RunBase):
 
 class RunRaman(RunBase):
 
-    def __init__(self, dc : DeviceCollection):
-        super().__init__(dc)
+    def __init__(self, dc : DeviceCollection, params):
+        super().__init__(dc, params)
 
         self.nshots = 75000
 
@@ -324,14 +325,15 @@ class RunRaman(RunBase):
 
 class RunFD(RunBase):
 
-    def __init__(self, dc : DeviceCollection):
-        super().__init__(dc)
+    def __init__(self, dc : DeviceCollection, params):
+        super().__init__(dc, params)
         self.nshots = 50
         
     def prepare(self):
         self.log(logging.INFO, "prepare")
         self.log(logging.INFO, "configure FPGA registers for FD run")
-        self.dc.fpga.write_register('pps_delay', 24_982_000)    #250 ms - 180 us of laser shot delay
+        value = self.params[self.identity]['fd_pps_delay']
+        self.dc.fpga.write_register('pps_delay', value) 
         self.dc.fpga.write_bit('laser_en', 1)
         self.dc.fpga.write_bit('timestamp_en', 1)
 
@@ -489,16 +491,18 @@ class RunFD(RunBase):
 
         self.finish()
 
-class RunCeleste(RunBase):
+class RunTank(RunBase):
 
-    def __init__(self, dc : DeviceCollection):
-        super().__init__(dc) 
+    def __init__(self, dc : DeviceCollection, params):
+        super().__init__(dc, params) 
         self.nshots = 3
+        self.tankname = self.params[self.identity]['tank_name']
 
     def prepare(self):
         self.log(logging.INFO, "prepare")
-        print("configure FPGA registers for CELESTE run...")
-        self.dc.fpga.write_register('pps_delay', 49_982_000)         #500 ms
+        print("configure FPGA registers for TANK run ({self.tankname})...")
+        value = self.params[self.identity]['tank_pps_delay']
+        self.dc.fpga.write_register('pps_delay', value) 
         self.dc.fpga.write_bit('laser_en', 1)
         self.dc.fpga.write_register('pulse_width', 10_000)  # 100 us
         self.dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
@@ -593,7 +597,7 @@ class RunCeleste(RunBase):
         return 0
 
     def run(self):
-        self.log(logging.INFO, "start CELESTE Run")
+        self.log(logging.INFO, f"start TANK Run ({self.tankname})")
         self.dc.fpga.write_dio('laser_en', 1)
         self.dc.fpga.write_dio('laser_start', 1)
 
@@ -656,8 +660,8 @@ class RunCeleste(RunBase):
 
 class RunCalib(RunBase):
 
-    def __init__(self, dc : DeviceCollection):
-        super().__init__(dc) 
+    def __init__(self, dc : DeviceCollection, params):
+        super().__init__(dc, params) 
 
     def prepare(self):
         self.log(logging.INFO, "prepare")

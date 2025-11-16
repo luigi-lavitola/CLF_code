@@ -22,6 +22,8 @@ class App(cmd2.Cmd):
         self.cfg = Configuration()
         self.cfg.read()
 
+        self.identity = self.cfg.parameters['identity']
+
         self.dc = DeviceCollection()
         self.dc.init(self.cfg)
 
@@ -31,11 +33,11 @@ class App(cmd2.Cmd):
         self.thr_hk = threading.Thread(target=self.hk.run)
         self.thr_hk.start()
 
-        self.rm = RunManager(self.dc, self.hk)
+        self.rm = RunManager(self.dc, self.hk, self.cfg.parameters)
 
         self.prompt_styles = {
-            'auto': "CLF:" + cmd2.style('AUTO', fg=cmd2.Fg.GREEN, bold=True) + "> ",
-            'manual': "CLF:" + cmd2.style('MANUAL', fg=cmd2.Fg.YELLOW, bold=True) + "> ",
+            'auto': self.identity + ":" + cmd2.style('AUTO', fg=cmd2.Fg.GREEN, bold=True) + "> ",
+            'manual': self.identity + ":" + cmd2.style('MANUAL', fg=cmd2.Fg.YELLOW, bold=True) + "> ",
         }
         self.mode = 'auto'
 
@@ -69,7 +71,7 @@ class App(cmd2.Cmd):
     start_parser.add_argument('runtype', choices=[
         str.lower(RunType.RAMAN.name),
         str.lower(RunType.FD.name),
-        str.lower(RunType.CELESTE.name),
+        str.lower(RunType.TANK.name),
         str.lower(RunType.CALIB.name),
         str.lower(RunType.MOCK.name)])
 
@@ -84,8 +86,8 @@ class App(cmd2.Cmd):
             run = RunEntry(datetime.now(), RunType.RAMAN, False, False)
         elif arg.runtype == 'fd':
             run = RunEntry(datetime.now(), RunType.FD, False, False)
-        elif arg.runtype == 'celeste':
-            run = RunEntry(datetime.now(), RunType.CELESTE, False, False)
+        elif arg.runtype == 'tank':
+            run = RunEntry(datetime.now(), RunType.TANK, False, False)
         elif arg.runtype == 'calib':
             run = RunEntry(datetime.now(), RunType.CALIB, False, False)
         elif arg.runtype == 'mock':
@@ -126,6 +128,44 @@ class App(cmd2.Cmd):
         print(f"mode: {self.mode}")
         print(f'scheduler status: {self.rm.print_status()}')
         print(f'next run for auto mode: {self.rm.next_run()}')
+
+    ## calendar ##
+
+    cal_parser = cmd2.Cmd2ArgumentParser()
+    cal_subparser = cal_parser.add_subparsers(title='subcommands', help='subcommand help')
+
+    cal_today_parser = cal_subparser.add_parser("today", help='show next run for today')
+
+    cal_next_parser = cal_subparser.add_parser("next")
+    cal_next_parser.add_argument('num', type=int, help='number of runs')
+
+    def caltoday(self, args):
+        n = 0
+        for i, run in enumerate(self.rm.runlist):
+            if run.start_time.day == datetime.now().day and run.start_time.month == datetime.now().month and run.start_time.year == datetime.now().year:
+                print(f'{n+1}: {run}')
+                n = n + 1
+        if n == 0:
+            print("no runs for today")
+
+    def calnext(self, args):
+        for i, run in enumerate(self.rm.runlist):
+            if run.start_time > datetime.now():
+                for n, r in enumerate(self.rm.runlist[i:i+args.num]):
+                    print(f'{n+1}: {r}')
+                break;
+
+    cal_today_parser.set_defaults(func=caltoday)
+    cal_next_parser.set_defaults(func=calnext)
+
+    @cmd2.with_argparser(cal_parser)
+    def do_calendar(self, args):
+        """get calendar for next runs"""
+        func = getattr(args, 'func', None)
+        if func is not None:
+            func(self, args)
+        else:
+            self.do_help("cal")
 
     ## quit ##
 
