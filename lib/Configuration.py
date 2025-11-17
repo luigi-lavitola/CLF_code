@@ -16,25 +16,27 @@ class Configuration:
                 for k,v in doc.items():
                     self.parameters[k] = v
 
-        with open('conf/ports.yml', 'r') as f:
+        identity = str.lower(self.parameters['identity'])
+
+        with open(f'conf/{identity}/ports.yml', 'r') as f:
             docs = yaml.safe_load_all(f)
             for doc in docs:
                 for k,v in doc.items():
                     self.ports[k] = v
 
-        with open('conf/motors.yml', 'r') as f:
+        with open(f'conf/{identity}/motors.yml', 'r') as f:
             docs = yaml.safe_load_all(f)
             for doc in docs:
                 for k,v in doc.items():
                     self.motors[k] = v
 
-        with open('conf/outlets.yml', 'r') as f:
+        with open(f'conf/{identity}/outlets.yml', 'r') as f:
             docs = yaml.safe_load_all(f)
             for doc in docs:
                 for k,v in doc.items():
                     self.outlets[k] = v
 
-        with open('conf/radiometers.yml', 'r') as f:
+        with open(f'conf/{identity}/radiometers.yml', 'r') as f:
             docs = yaml.safe_load_all(f)
             for doc in docs:
                 for k,v in doc.items():

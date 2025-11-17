@@ -145,8 +145,9 @@ class HouseKeeping:
                     if d['name'] == 'gps_fix':
                         d['alarm'] = self.gpsd.fix.mode <= 1
 
-        if len(self.alarm_data):
-            self.notify_subscribers(self.alarm_data)
+        #FIXME
+        #if len(self.alarm_data):
+        #    self.notify_subscribers(self.alarm_data)
 
     def get_alarm(self):
         return self.alarm_data

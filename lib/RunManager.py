@@ -100,31 +100,32 @@ class RunManager:
             raise TypeError
         self.runentry = runentry
         if self.job_is_running() == False:
-            if len(self.hk.get_alarm()) > 0:
-                self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to alarms {self.hk.get_alarm()}")
-            else:
-                self.log(logging.INFO, f"start {self.runentry.runtype.name} run")
-                if self.runentry.runtype == RunType.FD:
-                    self.run = RunFD(self.dc)
-                elif self.runentry.runtype == RunType.RAMAN:
-                    #self.log(logging.INFO, "skipping Raman run for debug reasons") #self.run = RunRaman(self.dc)
-                    self.run = RunRaman(self.dc, self.params)
-                elif self.runentry.runtype == RunType.TANK:
-                    self.run = RunTank(self.dc, self.params)
-                elif self.runentry.runtype == RunType.CALIB:
-                    self.run = RunCalib(self.dc, self.params)
-                elif self.runentry.runtype == RunType.MOCK:
-                    self.run = RunMock(self.dc, self.params)
+            #FIXME
+            #if len(self.hk.get_alarm()) > 0:
+            #    self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to alarms {self.hk.get_alarm()}")
+            #else:
+            self.log(logging.INFO, f"start {self.runentry.runtype.name} run")
+            if self.runentry.runtype == RunType.FD:
+                self.run = RunFD(self.dc, self.params)
+            elif self.runentry.runtype == RunType.RAMAN:
+                #self.log(logging.INFO, "skipping Raman run for debug reasons") #self.run = RunRaman(self.dc)
+                self.run = RunRaman(self.dc, self.params)
+            elif self.runentry.runtype == RunType.TANK:
+                self.run = RunTank(self.dc, self.params)
+            elif self.runentry.runtype == RunType.CALIB:
+                self.run = RunCalib(self.dc, self.params)
+            elif self.runentry.runtype == RunType.MOCK:
+                self.run = RunMock(self.dc, self.params)
 
-                if source == 'cli':     # run started from command line interface
+            if source == 'cli':     # run started from command line interface
+                self.job = multiprocessing.Process(target=self.run.execute)
+                self.job.start()
+            else:                   # run started from scheduler
+                if runentry.last == False:
+                    self.job = multiprocessing.Process(target=self.run.execute, args=(True, False,))
+                else:
                     self.job = multiprocessing.Process(target=self.run.execute)
-                    self.job.start()
-                else:                   # run started from scheduler
-                    if runentry.last == False:
-                        self.job = multiprocessing.Process(target=self.run.execute, args=(True, False,))
-                    else:
-                        self.job = multiprocessing.Process(target=self.run.execute)
-                    self.job.start()
+                self.job.start()
         else:
             self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to other job running")
 

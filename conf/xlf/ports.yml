@@ -1,0 +1,73 @@
+
+RPC:
+  port: "/dev/ttyr00"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+Laser:
+  port: "/dev/ttyr01"
+  baudrate: 57600
+  bytesize: 8
+  parity: serial.PARITY_EVEN
+  stopbits: 1
+  timeout: 0.1
+
+Rad_mon_1:
+  port: "/dev/ttyr02"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 0.2
+
+Motor_calib:
+  port: "/dev/ttyr03"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 0.2
+
+Rad_mon_2:
+  port: "/dev/ttyr04"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+Rad_mon_3:
+  port: "/dev/ttyr05"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+Cover_box_steering:
+  port: "/dev/ttyr06"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+weather_Station:
+  port: "/dev/ttyr07"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+
+steering_motor:
+  port: "/dev/ttyr08"
+  baudrate: 9600
+  bytesize: 8
+  parity: 'N'
+  stopbits: 1
+  timeout: 1
+

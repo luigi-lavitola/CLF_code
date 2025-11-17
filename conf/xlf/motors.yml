@@ -1,0 +1,22 @@
+
+LwNorthSouth:
+  port: "Motor_calib"
+  id: 1
+
+LwPolarizer:
+  port: "Motor_calib"
+  id: 2
+
+UpNorthSouth:
+  port: "Motor_calib"
+  id: 3
+
+UpEastWest:
+  port: "Motor_calib"
+  id: 4
+
+Cover:
+  port: "Cover_box_steering"
+  id: 1
+
+

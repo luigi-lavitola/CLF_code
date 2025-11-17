@@ -1,0 +1,19 @@
+VXM:
+  port: "RPC"
+  id: 1
+
+radiometer:
+  port: "RPC"
+  id: 2
+
+laser:
+  port: "RPC"
+  id: 3
+
+Vert_cover:
+  port: "RPC"
+  id: 5
+
+steering:
+  port: "RPC"
+  id: 6

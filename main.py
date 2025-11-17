@@ -132,11 +132,11 @@ class App(cmd2.Cmd):
     ## calendar ##
 
     cal_parser = cmd2.Cmd2ArgumentParser()
-    cal_subparser = cal_parser.add_subparsers(title='subcommands', help='subcommand help')
+    cal_subparser = cal_parser.add_subparsers(title='subcommands')
 
     cal_today_parser = cal_subparser.add_parser("today", help='show next run for today')
 
-    cal_next_parser = cal_subparser.add_parser("next")
+    cal_next_parser = cal_subparser.add_parser("next", help='show next number of runs')
     cal_next_parser.add_argument('num', type=int, help='number of runs')
 
     def caltoday(self, args):
