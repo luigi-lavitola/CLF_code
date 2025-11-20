@@ -1,0 +1,97 @@
+
+- dev: tla
+  name: battery1
+  channel: 6
+  value: 0
+  unit: V
+  coeff: 0.0051309796
+  scalar: 0
+  min: 11.5
+  max: 16
+  alarm: False
+
+- dev: tla
+  name: battery2
+  channel: 2
+  value: 0
+  unit: V
+  coeff: 0.00518116
+  scalar: 0
+  min: 11.5
+  max: 16
+  alarm: False
+
+- dev: tla
+  name: solar2 
+  channel: 0
+  value: 0
+  unit: V
+  coeff: 0.00473095
+  scalar: 0
+
+- dev: tla
+  name: relay
+  channel: 5
+  value: 0
+  unit: V
+  coeff: 1
+  scalar: 0
+
+- dev: tla
+  name: solar1
+  channel: 4
+  value: 0
+  unit: V
+  coeff: 0.00495
+  scalar: 0
+
+- dev: tla
+  name: rain
+  channel: 1
+  value: 0
+  coeff: 1
+  scalar: -645
+
+- dev: ltc
+  name: t0
+  channel: 4
+  value: 0
+  unit: degC
+
+- dev: ltc
+  name: t1
+  channel: 6
+  value: 0
+  unit: degC
+  
+- dev: ltc
+  name: t2
+  channel: 8
+  value: 0
+  unit: degC
+
+- dev: ltc
+  name: t3
+  channel: 10
+  value: 0
+  unit: degC
+
+- dev: ltc
+  name: t4
+  channel: 12
+  value: 0
+  unit: degC
+
+- dev: dio
+  name: cover_steer_open
+  value: False
+
+- dev: gps
+  name: gps_fix
+  value: True
+  alarm: False
+  info: ""
+
+
+
+

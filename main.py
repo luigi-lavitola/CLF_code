@@ -29,7 +29,7 @@ class App(cmd2.Cmd):
 
         #Logger.init()
 
-        self.hk = HouseKeeping()
+        self.hk = HouseKeeping(self.cfg.parameters)
         self.thr_hk = threading.Thread(target=self.hk.run)
         self.thr_hk.start()
 
@@ -166,6 +166,51 @@ class App(cmd2.Cmd):
             func(self, args)
         else:
             self.do_help("cal")
+
+    ## pdu ##
+
+    pdu_parser = cmd2.Cmd2ArgumentParser()
+    pdu_subparser = pdu_parser.add_subparsers(title='subcommands')
+
+    pdu_on_parser = pdu_subparser.add_parser("on", help='power on outlet')
+    pdu_on_parser.add_argument('num', type=int, help='outlet number')
+
+    pdu_off_parser = pdu_subparser.add_parser("off", help='power off outlet')
+    pdu_off_parser.add_argument('num', type=int, help='outlet number')
+
+    pdu_status_parser = pdu_subparser.add_parser("status", help='show pdu status')
+
+    def pduon(self, args):
+        for k,v in self.dc.outlets.items():
+            if v.id == args.num:
+                v.on()
+                return
+        print(f"E: outlet {args.num} not available")
+
+    def pduoff(self, args):
+        for k,v in self.dc.outlets.items():
+            if v.id == args.num:
+                v.off()
+                return
+        print(f"E: outlet {args.num} not available")
+
+    def pdustatus(self, args):
+        status = ["off", "on"]
+        for k,v in self.dc.outlets.items():
+            print(f"{v.id} {k} {status[v.status()]}")
+
+    pdu_on_parser.set_defaults(func=pduon)
+    pdu_off_parser.set_defaults(func=pduoff)
+    pdu_status_parser.set_defaults(func=pdustatus)
+
+    @cmd2.with_argparser(pdu_parser)
+    def do_pdu(self, args):
+        """manage pdu outlets"""
+        func = getattr(args, 'func', None)
+        if func is not None:
+            func(self, args)
+        else:
+            self.do_help("pdu")
 
     ## quit ##
 

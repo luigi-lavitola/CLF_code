@@ -3,6 +3,7 @@ import os
 import sys
 import gps
 import time
+import yaml
 import datetime
 import logging
 import threading
@@ -19,7 +20,7 @@ class HouseKeeping:
 
     __subscribers = []
 
-    def __init__(self):
+    def __init__(self, params):
         self.spi1 = SpiController()
         self.spi1.configure('ftdi://ftdi:4232h/1')
         self.slave1 = self.spi1.get_port(cs=0, freq=2E6, mode=0)
@@ -34,6 +35,9 @@ class HouseKeeping:
 
         self.gpsd = gps.gps(mode=gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
         self.gps_thr = None
+
+        self.params = params
+        self.identity = str.lower(self.params['identity'])
 
         self.log = logging.getLogger("housekeeping")
         self.log.setLevel(logging.INFO)
@@ -67,27 +71,13 @@ class HouseKeeping:
                 THERMISTOR_EXCITATION_MODE__SHARING_ROTATION |
                 THERMISTOR_EXCITATION_CURRENT__AUTORANGE)
 
-        self.data = [
-            { "dev": "tla", "name": "battery1", "channel": 0, "value": 0, 
-                "unit": "V", "coeff": 0.012698329443235162, "min": 11.5, "max": 16, "alarm": False},
-            { "dev": "tla", "name": "battery2", "channel": 1, "value": 0, 
-                "unit": "V", "coeff": 0.012857486052905534, "min": 11.5, "max": 16, "alarm": False},
-            { "dev": "tla", "name": "solar2", "channel": 2, "value": 0, 
-                "unit": "V", "coeff": 0.012580072988236255 },
-            { "dev": "tla", "name": "relay", "channel": 5, "value": 0, 
-                "unit": "V", "coeff": 0.012 },
-            { "dev": "tla", "name": "solar1", "channel": 7, "value": 0, 
-                "unit": "V", "coeff": 0.012597657636342127 },
-            { "dev": "ltc", "name": "t0", "channel": 4, "value": 0, "unit": "degC", },
-            { "dev": "ltc", "name": "t1", "channel": 6, "value": 0, "unit": "degC", },
-            { "dev": "ltc", "name": "t2", "channel": 8, "value": 0, "unit": "degC", },
-            { "dev": "ltc", "name": "t3", "channel": 10, "value": 0, "unit": "degC", },
-            { "dev": "ltc", "name": "t4", "channel": 12, "value": 0, "unit": "degC", },
-            { "dev": "dio", "name": "rain", "value": False, "error": False, "alarm": False},
-            { "dev": "dio", "name": "cover_steer_open", "value": False },
-            { "dev": "dio", "name": "cover_raman_open", "value": False },
-            { "dev": "gps", "name": "gps_fix", "value": True, "alarm": False, "info": "" },
-        ]
+        self.data = []
+
+        with open(f'conf/{self.identity}/sensors.yml', 'r') as f:
+            docs = yaml.safe_load_all(f)
+            for doc in docs:
+                for entry in doc:
+                    self.data.append(entry)
         
         self.gps_fix_str = [ "unknown", "no fix", "2D", "3D" ]
 
@@ -101,7 +91,11 @@ class HouseKeeping:
     def collect_data(self):
         for d in self.data:
             if d['dev'] == 'tla':
-                d['value'] = round(self.adc.read_channel(d['channel']) * d['coeff'], 2)
+                if d['name'] == 'rain':
+                    value = round((self.adc.read_channel(d['channel']) + d['scalar']) * d['coeff'], 2)
+                    d['value'] = (value > 500)
+                else:
+                    d['value'] = round((self.adc.read_channel(d['channel']) + d['scalar']) * d['coeff'], 2)
             elif d['dev'] == 'ltc':
                 d['value'] = round(self.tcont.read_temperature(d['channel']), 2)
             elif d['dev'] == 'dio':
@@ -145,9 +139,8 @@ class HouseKeeping:
                     if d['name'] == 'gps_fix':
                         d['alarm'] = self.gpsd.fix.mode <= 1
 
-        #FIXME
-        #if len(self.alarm_data):
-        #    self.notify_subscribers(self.alarm_data)
+        if len(self.alarm_data):
+            self.notify_subscribers(self.alarm_data)
 
     def get_alarm(self):
         return self.alarm_data
