@@ -65,6 +65,16 @@ class VXM:
                     self.serial.open()
                 return func(self, *args, **kwargs)
             return wrapper
+
+        @check_open
+        def init(self):
+            # clear previous history
+            self.serial.write("C".encode())
+            # disable echo
+            self.serial.write("F".encode())
+            # disable backlash compensation
+            self.send_command("B0".encode())
+            time.sleep(0.5)
             
         def is_connected(self):
             self.send_command("E")
@@ -97,19 +107,44 @@ class VXM:
                 print(f"VXM:READ_R:ERROR:Unable to read response")
                 return -1
 
+        def run(self):
+            self.flush_buffers()
+            self.serial.write("R\r".encode())
+
+            ready = ""
+            try:
+                while ready != "^":
+                    time.sleep(0.5)
+                    response = self.serial.read(self.string_return).decode(errors='ignore').strip()
+                    ready = str(response)
+
+                print(f"VXM:RUN:Executed")
+                return 0
+            except Exception as e:
+                print(f"VXM:RUN:ERROR:VXM at {self.serial}:Unable to execute:{e}")
+                return -1
+
         @check_open
         def send_command(self, command):
             try:
-                self.serial.flushInput()
+                #self.serial.flushInput()
+                self.flush_buffers()
                 self.serial.write(f"{command}\r".encode())
                 time.sleep(0.5)
 
-                response = self.read_command()
+                print(f"VXM: send command {command} to motor {self.id}")
 
+                try:
+                    response = self.run()
+                except serial.SerialException: 
+                    print(f"VXM:READ_R:ERROR: unable to execute command")
+                    return -1
+
+                self.serial.write("C".encode())
                 return response
 
             except serial.SerialException as e:
-                print(f"VXM:SEND_COMM:Unable to send {command} command: {e}")
+                print(f"VXM:SEND_COMM: unable to send {command} command: {e}")
                 return -1
             
         @check_open
@@ -137,25 +172,26 @@ class VXM:
             except Exception as e:
                 print(f"VXM:KILL:ERROR:Some problem occurred:{e}")
 
-        def clear(self):
-            self.flush_buffers()
-            try:
-                self.send_command("C")
-                ready = self.send_command("V")
-                
-                if ready == 'R':
-                    print('VXM:CLEAR:Memory cleaned succesfully')
-                    return 0
-                
-                else:
-                    print("VXM:CLEAR:ERROR:Unable to clear memory")
-            except Exception as e:
-                print(f"VXM:CLEAR:ERROR:Some problem occurred:{e}")
-            
-            
+        #def clear(self):
+        #    self.flush_buffers()
+        #    try:
+        #        self.send_command("C")
+        #        ready = self.send_command("V")
+        #        
+        #        if ready == 'R':
+        #            print('VXM:CLEAR:Memory cleaned succesfully')
+        #            return 0
+        #        
+        #        else:
+        #            print("VXM:CLEAR:ERROR:Unable to clear memory")
+        #    except Exception as e:
+        #        print(f"VXM:CLEAR:ERROR:Some problem occurred:{e}")
+
+
         def set_model(self, model):
             self.flush_buffers()
             self.send_command(f"setM{self.id}M{model}")
+            time.sleep(0.1)
             ready = self.send_command("V")
             
             if ready and ready== "R":
@@ -183,30 +219,15 @@ class VXM:
 
         def set_speed(self, value):
             self.flush_buffers()
-            self.send_command(f"S{self.id}M{value}")
-            ready = self.send_command("V")
-
-            if ready and ready== "R":
-                print(f"VXM:SET_SPEED:VXM at {self.serial}:Motor {self.id} speed set: {value}")
-                self.clear()
-                return 0
-            else:
-                print(f"VXM:SET_SPEED:ERROR:VXM at {self.serial}:Unable to set motor {self.id} speed")
-                return -1
+            command_str = f"S{self.id}M{value}"
             
-        def run(self):
-            self.flush_buffers()
-            ready = self.send_command("R")
             try:
-                while ready != "^":
-                    time.sleep(0.5)
-                    ready = self.read_command()
-
-                print(f"VXM:RUN:Executed")
-                return 0
+                self.send_command(command_str)
+                print(f"VXM:SET_SPEED:VXM: motor {self.id} speed set to {value}")
+                return 0 
             except Exception as e:
-                print(f"VXM:RUN:ERROR:VXM at {self.serial}:Unable to execute:{e}")
-                return -1
+                print(f"VXM:SET_SPEED:ERROR:VXM: unable to set speed {self.id} to {value}:{e}")
+                return -2
     
         def wait(self,dtime):
             self.flush_buffers()
@@ -247,14 +268,10 @@ class VXM:
             command_str = f"I{self.id}M{pos}"
             try:
                 self.send_command(command_str)
-                self.run()
                 print(f"VXM:MOVE_FWD:VXM at {self.serial}: motor {self.id} in position {pos}")
-                self.clear()
                 return 0 
-            
             except Exception as e:
                 print(f"VXM:MOVE_FWD:ERROR:VXM at {self.serial}:unable to move motor {self.id} in position {pos}:{e}")
-                self.clear()
                 return -1
             
         def move_BWD(self, pos):
@@ -262,13 +279,10 @@ class VXM:
             command_str = f"I{self.id}M-{pos}"
             try:
                 self.send_command(command_str)
-                self.run()
                 print(f"VXM:MOVE_BWD:VXM at {self.serial}: motor {self.id} in position {pos}")
-                self.clear()
                 return 0 
             except Exception as e:
                 print(f"VXM:MOVE_BWD:ERROR:VXM at {self.serial}:unable to move motor {self.id} in position {pos}:{e}")
-                self.clear()
                 return -2
                
         def move_Neg0(self):
@@ -276,14 +290,10 @@ class VXM:
             command_str = f"I{self.id}M-0"
             try:
                 self.send_command(command_str)
-                self.run()
-                print(f"VXM:MOVE_NEG0:VXM at {self.serial}: motor {self.id} in negative zero position")
-                self.clear()
+                print(f"VXM:MOVE_NEG0:VXM: motor {self.id} in negative zero position")
                 return 0 
-                
             except Exception as e:
-                print(f"VXM:MOVE_NEG0:ERROR:VXM at {self.serial}:unable to move motor {self.id} in negative zero position:{e}")
-                self.clear()
+                print(f"VXM:MOVE_NEG0:ERROR:VXM: unable to move motor {self.id} in negative zero position:{e}")
                 return -2
             
         def move_Pos0(self):
@@ -291,14 +301,11 @@ class VXM:
             command_str = f"I{self.id}M0"
             try:
                 self.send_command(command_str)
-                self.run()
-                print(f"VXM:MOVE_POS0:VXM at {self.serial}: motor {self.id} in positive zero position")
-                self.clear()
+                print(f"VXM:MOVE_POS0:VXM: motor {self.id} in positive zero position")
                 return 0 
               
             except Exception as e:
-                print(f"VXM:MOVE_POS0:ERROR:VXM at {self.serial}:unable to move motor {self.id} in positive zero position:{e}")
-                self.clear()
+                print(f"VXM:MOVE_POS0:ERROR:VXM: unable to move motor {self.id} in positive zero position:{e}")
                 return -2
             
         def move_ABS0(self):
@@ -306,14 +313,10 @@ class VXM:
             command_str = f"IA{self.id}M0"
             try:
                 self.send_command(command_str)
-                self.run()
-                print(f"VXM:MOVE_ABS0:VXM at {self.serial}: motor {self.id} in absolute 0 position")
-                self.clear()                
+                print(f"VXM:MOVE_ABS0:VXM: motor {self.id} in absolute 0 position")
                 return 0 
-                
             except Exception as e:
-                print(f"VXM:MOVE_ABS0:ERROR:VXM at {self.serial}:unable to move motor {self.id} in absolute 0 position:{e}")
-                self.clear()
+                print(f"VXM:MOVE_ABS0:ERROR:VXM: unable to move motor {self.id} in absolute 0 position:{e}")
                 return -1
                   
         def move_ABS(self, abs_pos):
@@ -321,42 +324,20 @@ class VXM:
             abs_pos = int(abs_pos)
             command_str = f"IA{self.id}M{abs_pos}"
 
-            if self.id == 1:
-                current_pos = self.send_command("X")
-            if self.id == 2:
-                current_pos = self.send_command("Y")
-            if self.id == 3:
-                current_pos = self.send_command("Z")
-            if self.id == 4:
-                current_pos = self.send_command("T")
-
-            current_pos = int(current_pos.strip('ZXYT+-'))
-
-            if current_pos == abs_pos:
-                print(f"VXM:MOVE_ABS:VXM at {self.serial}:motor {self.id} already in absolute position {abs_pos}")
-            else:
-                try:
-                    self.send_command(command_str)
-                    self.run()
-
-                    print(f"VXM:MOVE_ABS:VXM at {self.serial}:motor {self.id} in absolute position {abs_pos}")
-                    self.clear()
-                    return 0 
-                    
-                except Exception as e:
-                    print(f"VXM:MOVE_ABS:ERROR:VXM at {self.serial}:unable to move motor {self.id} in absolute position {abs_pos}:{e}")
-                    self.clear()
-                    return -2
-
-        def set_ABSzero(self, abs_zero):
-            self.flush_buffers()
-            self.move_ABS(self.id, abs_zero)
             try:
-                self.send_command(f"IA{self.id}M-0")                
-                print(f"VXM:MOVE_ABS:VXM at {self.serial}: motor {self.id} in absolute position {abs_zero}")
-                self.clear()
+                self.send_command(command_str)
+                print(f"VXM:MOVE_ABS:VXM: motor {self.id} in absolute position {abs_pos}")
                 return 0 
             except Exception as e:
-                print(f"VXM:MOVE_ABS:ERROR:VXM at {self.serial}:unable to move motor {self.id} in absolute position {abs_zero}:{e}")
-                self.clear()
+                print(f"VXM:MOVE_ABS:ERROR:VXM: unable to move motor {self.id} in absolute position {abs_pos}:{e}")
+                return -2
+
+        def set_ABSzero(self):
+            self.flush_buffers()
+            try:
+                self.send_command(f"IA{self.id}M-0")                
+                print(f"VXM:MOVE_ABS:VXM: motor {self.id} in absolute position 0")
+                return 0 
+            except Exception as e:
+                print(f"VXM:MOVE_ABS:ERROR:VXM: unable to move motor {self.id} in absolute position 0:{e}")
                 return -1
