@@ -11,7 +11,7 @@ from lib.RunManager import RunManager, RunType
 
 from lib.FPGAData import FPGAData
 
-data = FPGAData("/dev/data0")
+#data = FPGAData("/dev/data0")
 
 
 ### HELPERS
@@ -93,40 +93,30 @@ print("radiometer 3700 setup...")
 dc.get_radiometer('Rad1').setup()
 print("done")
 
-print("radiometer 3700 setup...")
-dc.get_radiometer('Rad2').setup()
-print("done")
+#print("radiometer 3700 setup...")
+#dc.get_radiometer('Rad2').setup()
+#print("done")
 
 print("radiometer 3700 setup...")
 dc.get_radiometer('Rad3').setup()
 print("done")
 
-##
+# motors
+dc.get_motor("UpEastWest").move_Neg0()
+dc.get_motor("UpEastWest").move_Neg0()
+
+dc.get_motor("UpEastWest").set_ABSzero()
+dc.get_motor("UpEastWest").move_ABS(4470)
+
+dc.get_motor("UpNorthSouth").move_Neg0()
+dc.get_motor("UpNorthSouth").move_Neg0()
+
+dc.get_motor("UpNorthSouth").set_ABSzero()
+dc.get_motor("UpNorthSouth").move_ABS(33250)
 
 print("select vertical beam...")
 dc.fpga.write_dio('flipper_raman', False)
 print("done")
-
-
-
-print("UPPER MOTORS INITIALIZATION:STARTING")
-dc.get_motor("UpNorthSouth").set_model(1)
-dc.get_motor("UpNorthSouth").set_acc(2000)
-dc.get_motor("UpEastWest").set_model(1)
-dc.get_motor("UpEastWest").set_acc(2000)
-print("UPPER MOTORS INITIALIZATION:COMPLETE")
-
-print("LOWER MOTORS INITIALIZATION:STARTING")
-dc.get_motor("LwNorthSouth").set_model(1)
-dc.get_motor("LwNorthSouth").set_acc(2000)
-dc.get_motor("LwPolarizer").set_model(1)
-dc.get_motor("LwPolarizer").set_acc(2000)
-print("LOWER MOTORS INITIALIZATION:COMPLETE")
-
-print("MOVING RADIOMETER 3 IN POSITION:STARTING")
-dc.get_motor("UpNorthSouth").move_ABS(33250)
-dc.get_motor("UpEastWest").move_ABS(4470)
-print("MOVING RADIOMETER 3 IN POSITION:COMPLETE")
 
 print("wait for laser fire auth...")
 while not dc.laser.fire_auth():
@@ -141,58 +131,56 @@ dc.fpga.write_dio('laser_en', 1)
 dc.fpga.write_dio('laser_start', 1)
 
 for i in range(nshots):
-    power=dc.get_radiometer('Rad3').read_power()
+    power = dc.get_radiometer('Rad3').read_power()
     print(f'power {i} shot: {power}')
-    data.read_event()
 
 print("laser standby...")
 dc.laser.standby()
 print("done")
 
 print("MOVING RADIOMETER 3 IN HOME:STARTING")
-dc.get_motor("UpNorthSouth").move_ABS0()
-dc.get_motor("UpEastWest").move_ABS0()
+dc.get_motor("UpEastWest").move_ABS(0)
+dc.get_motor("UpNorthSouth").move_ABS(0)
 print("MOVING RADIOMETER 3 IN HOME:COMPLETE")
 
-
-#switching to 100 us energy
-dc.fpga.write_register('pulse_energy', 16_400) # 140 us = 174 us, maximum
-
-print("laser setup...")
-dc.laser.set_mode(qson = 1, dpw = 100)
-print("done")
-
-print("MOVING RADIOMETER 2 IN POSITION:STARTING")
-dc.get_motor("UpNorthSouth").move_ABS(1300)
-dc.get_motor("UpEastWest").move_ABS(20200)
-print("MOVING RADIOMETER 2 IN POSITION:COMPLETE")
-
-print("wait for laser fire auth...")
-while not dc.laser.fire_auth():
-    print(dc.laser.temperature())
-    time.sleep(1)
-print("set laser in fire mode...")
-dc.laser.fire()
-print("done")
-
-print("start ECAL run at 100us...")
-dc.fpga.write_dio('laser_en', 1)
-dc.fpga.write_dio('laser_start', 1)
-
-for i in range(nshots):
-    power=dc.get_radiometer('Rad2').read_power()
-    print(f'power {i} shot: {power}')
-    data.read_event()
-
-print("laser standby...")
-dc.laser.standby()
-print("done")
-
-print("MOVING RADIOMETER 2 IN HOME:STARTING")
-dc.get_motor("UpNorthSouth").move_ABS0()
-dc.get_motor("UpEastWest").move_ABS0()
-print("MOVING RADIOMETER 2 IN HOME:COMPLETE")
-
+##switching to 100 us energy
+#dc.fpga.write_register('pulse_energy', 16_400) # 140 us = 174 us, maximum
+#
+#print("laser setup...")
+#dc.laser.set_mode(qson = 1, dpw = 100)
+#print("done")
+#
+#print("MOVING RADIOMETER 2 IN POSITION:STARTING")
+#dc.get_motor("UpNorthSouth").move_ABS(1300)
+#dc.get_motor("UpEastWest").move_ABS(20200)
+#print("MOVING RADIOMETER 2 IN POSITION:COMPLETE")
+#
+#print("wait for laser fire auth...")
+#while not dc.laser.fire_auth():
+#    print(dc.laser.temperature())
+#    time.sleep(1)
+#print("set laser in fire mode...")
+#dc.laser.fire()
+#print("done")
+#
+#print("start ECAL run at 100us...")
+#dc.fpga.write_dio('laser_en', 1)
+#dc.fpga.write_dio('laser_start', 1)
+#
+#for i in range(nshots):
+#    power=dc.get_radiometer('Rad2').read_power()
+#    print(f'power {i} shot: {power}')
+#    data.read_event()
+#
+#print("laser standby...")
+#dc.laser.standby()
+#print("done")
+#
+#print("MOVING RADIOMETER 2 IN HOME:STARTING")
+#dc.get_motor("UpNorthSouth").move_ABS0()
+#dc.get_motor("UpEastWest").move_ABS0()
+#print("MOVING RADIOMETER 2 IN HOME:COMPLETE")
+#
 
 
 

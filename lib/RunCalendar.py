@@ -92,9 +92,10 @@ class RunCalendar:
 
             start_time = start_date
             while start_time <= entry.end_date:
-                if start_time.strftime("%H:%M") == "04:35" or start_time.strftime("%H:%M") == "04:50":
-                    start_time += timedelta(minutes=15)
-                    continue
+                if('raman' in [s.lower() for s in self.params[self.identity]['run_list']]):
+                    if start_time.strftime("%H:%M") == "04:35" or start_time.strftime("%H:%M") == "04:50":
+                        start_time += timedelta(minutes=15)
+                        continue
                 if('fd' in [s.lower() for s in self.params[self.identity]['run_list']]):
                     ttable.append(RunEntry(start_time, runtype=RunType.FD))
                 start_time += timedelta(minutes=15)

@@ -21,7 +21,7 @@ class RunBase:
     def __init__(self, dc : DeviceCollection, params):
         self.dc = dc
         self.params = params
-        self.identity = self.params['identity']
+        self.identity = str.lower(self.params['identity'])
 
         self.logger = logging.getLogger("run")
         self.logger.setLevel(logging.INFO)
@@ -335,7 +335,7 @@ class RunFD(RunBase):
         value = self.params[self.identity]['fd_pps_delay']
         self.dc.fpga.write_register('pps_delay', value) 
         self.dc.fpga.write_bit('laser_en', 1)
-        self.dc.fpga.write_bit('timestamp_en', 1)
+        self.dc.fpga.write_bit('timestamp_en', 0)
 
         self.dc.fpga.write_register('pulse_width', 10_000)  # 100 us
         self.dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
@@ -408,6 +408,8 @@ class RunFD(RunBase):
             time.sleep(1)
             t += 1
         self.log(logging.INFO, "done")
+
+        self.dc.fpga.write_bit('timestamp_en', 1)
 
         self.log(logging.INFO, "select vertical beam")
         self.dc.fpga.write_dio('flipper_raman', False)
@@ -576,6 +578,8 @@ class RunTank(RunBase):
             time.sleep(1)
             t += 1
         self.log(logging.INFO, "done")
+
+        self.dc.fpga.write_bit('timestamp_en', 1)
 
         self.log(logging.INFO, "select vertical beam")
         self.dc.fpga.write_dio('flipper_raman', False)

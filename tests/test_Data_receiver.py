@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 from lib.FPGAData import FPGAData
 
-data = FPGAData("/dev/runcontrol")
+data = FPGAData("/dev/data0")
 
 
 for i in range(10):

@@ -356,7 +356,7 @@ class Centurion:
         #    status = self.read_status()
 
         self.check_temps()
-        if self.head_temp <= 450 and self.dump_temp <= 450 and self.plate_temp <= 450:
+        if self.head_temp <= 500 and self.dump_temp <= 450 and self.plate_temp <= 450:
             self.send_command("$FIRE")
            
 
