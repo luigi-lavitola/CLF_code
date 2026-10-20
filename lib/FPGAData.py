@@ -29,7 +29,7 @@ class FPGAData:
             raise RuntimeError(f"Errore apertura porta seriale: {e}")
 
     def read_event(self):
-        # Leggi tutto ciò che è disponibile
+        # Leggi tutto ciï¿½ che ï¿½ disponibile
         #self.buffer += self.serial.read_all().decode('utf-8', 'ignore')
         data=""
         n_try=0
@@ -66,7 +66,7 @@ class FPGAData:
                 raise ValueError("Dati incompleti")
 
             seconds = (int(values[0], 16) << 16) + int(values[1], 16)
-            counter = (int(values[2], 16) << 16) + int(values[3], 16) * 10
+            counter = ((int(values[2], 16) << 16) + int(values[3], 16)) * 10
             pps_delta = (int(values[4], 16) - 32767) * 10
             counter_pulses = int(values[5], 16)
 
