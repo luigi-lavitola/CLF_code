@@ -155,9 +155,10 @@ def test_same_physical_trigger_time_on_v1_and_v2(run_class, trigger_ms):
 
 @pytest.mark.parametrize("hw", [V1, V2])
 def test_packet_uses_profile_tick(hw):
-    data = FPGAData.__new__(FPGAData)
-    data.HEADER, data.FOOTER, data.tick_ns = "BAAB", "FEEF", hw.tick_ns
-    seconds, t_ns, pps_ns, shot = data._parse_packet("BAAB\r6774\r8580\r017D\r761A\r7FFD\r0001\rFEEF\r")
-    assert seconds == 1_735_689_600 and shot == 1
-    assert t_ns == pytest.approx(24_999_450 * hw.tick_ns)
-    assert pps_ns == pytest.approx(-2 * hw.tick_ns)
+    data = object.__new__(FPGAData)
+    data._setup(hw.tick_ns)
+    data.buffer = "BAAB\r6774\r8580\r017D\r761A\r7FFD\r0001\rFEEF\r"
+    p = data._next_frame()
+    assert p.seconds == 1_735_689_600 and p.shot == 1
+    assert p.counter == pytest.approx(24_999_450 * hw.tick_ns)
+    assert p.pps_delta == pytest.approx(-2 * hw.tick_ns)

@@ -6,6 +6,7 @@ import lib.Run as run_module
 from lib.GpsTime import unix_to_gps, gps_to_unix, gps_utc_offset
 from lib import TimeSync
 from lib.Run import RunFD
+from lib.FPGAData import Packet
 
 from fakes import FakeDC
 
@@ -106,8 +107,8 @@ def test_small_host_clock_error_is_fine(host_error):
 
 def test_shot_log_uses_gps_seconds(monkeypatch):
     class Data:
-        def read_event(self):
-            return 1_735_689_600, 249_994_500, -20, 1
+        def read_shot(self, n, timeout_s):
+            return Packet(1_735_689_600, 249_994_500, -20, n, "")
     dc = FakeDC()
     dc.data = Data()
     run = RunFD(dc, {"identity": "clf", "clf": {}})
@@ -119,8 +120,8 @@ def test_shot_log_uses_gps_seconds(monkeypatch):
 
 def test_shot_log_failed_read_stays_zero():
     class Data:
-        def read_event(self):
-            return 0, 0, 0, 0
+        def read_shot(self, n, timeout_s):
+            return None                      # no packet for this shot
     dc = FakeDC()
     dc.data = Data()
     run = RunFD(dc, {"identity": "clf", "clf": {}})
