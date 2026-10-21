@@ -20,6 +20,9 @@ class HouseKeeping:
 
     __subscribers = []
 
+    MAX_FAILURES = 3        # consecutive failed cycles (10 s each) before the fail-safe alarm
+    GPS_RETRY_S = 5
+
     def __init__(self, params):
         self.spi1 = SpiController()
         self.spi1.configure('ftdi://ftdi:4232h/1')
@@ -85,8 +88,22 @@ class HouseKeeping:
         self.alarm_data = []
 
     def collect_gps(self):
+        failing = False
         while self.running:
-            self.gpsd.next()
+            try:
+                self.gpsd.next()
+                if failing:
+                    self.log.info("gpsd readout recovered")
+                    failing = False
+            except Exception as e:
+                # e.g. gpsd restarted: keep the thread alive, log once, retry
+                if not failing:
+                    self.log.error(f"gpsd readout failed, retrying every {self.GPS_RETRY_S}s: {e!r}")
+                    failing = True
+                for _ in range(self.GPS_RETRY_S):
+                    if not self.running:
+                        return
+                    time.sleep(1)
 
     def collect_data(self):
         for d in self.data:
@@ -119,28 +136,31 @@ class HouseKeeping:
         self.csv.info(csv_row)
 
     def check_alarm(self):
-        self.alarm_data = []
+        # build the list locally and publish it in one assignment: get_alarm() is called
+        # from the RunManager thread and must never see a half-built (empty) list
+        alarm_data = []
         for d in self.data:
             if d.get('alarm', None) is not None:
                 if d['dev'] == 'tla':
                     if (d['value'] < d['min']) or (d['value'] > d['max']):
                         d['alarm'] = True
-                        self.alarm_data.append(d)
+                        alarm_data.append(d)
                     else:
                         d['alarm'] = False
                 elif d['dev'] == 'dio':
                     if d['name'] == 'rain':
                         if d['value'] or d['error']:
                             d['alarm'] = True
-                            self.alarm_data.append(d)
+                            alarm_data.append(d)
                         else:
                             d['alarm'] = False
                 elif d['dev'] == 'gps':
                     if d['name'] == 'gps_fix':
                         d['alarm'] = self.gpsd.fix.mode <= 1
 
-        if len(self.alarm_data):
-            self.notify_subscribers(self.alarm_data)
+        self.alarm_data = alarm_data
+        if len(alarm_data):
+            self.notify_subscribers(alarm_data)
 
     def get_alarm(self):
         return self.alarm_data
@@ -149,10 +169,24 @@ class HouseKeeping:
         self.running = True
         self.gps_thr = threading.Thread(target=self.collect_gps)
         self.gps_thr.start()
+        failures = 0
         while True:
-            self.collect_data()
-            self.log_data()
-            self.check_alarm()
+            try:
+                self.collect_data()
+                self.log_data()
+                self.check_alarm()
+                if failures >= self.MAX_FAILURES:
+                    self.log.info("housekeeping readout recovered")
+                failures = 0
+            except Exception as e:
+                failures += 1
+                self.log.error(f"housekeeping cycle failed ({failures} in a row): {e!r}", exc_info=True)
+                if failures >= self.MAX_FAILURES:
+                    # sensors (rain included) cannot be trusted any more: fail safe,
+                    # block new runs and abort the one in progress
+                    self.alarm_data = [{'dev': 'hk', 'name': 'housekeeping_error',
+                                        'value': repr(e), 'alarm': True}]
+                    self.notify_subscribers(self.alarm_data)
             for _ in range(10):
                 if self.running == False:
                     return
@@ -172,8 +206,12 @@ class HouseKeeping:
             pass
 
     def notify_subscribers(self, alarm_data):
-        for sub in self.__subscribers:
-            sub(alarm_data)
+        for sub in list(self.__subscribers):
+            try:
+                sub(alarm_data)
+            except Exception as e:
+                # a failing subscriber must not stop the housekeeping loop
+                self.log.error(f"alarm subscriber {sub} failed: {e!r}", exc_info=True)
 
 if __name__ == "__main__":
     hk = HouseKeeping()
