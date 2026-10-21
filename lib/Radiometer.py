@@ -1,3 +1,5 @@
+import math
+import time
 import serial
 import logging
 import datetime
@@ -5,6 +7,8 @@ from functools import partial
 from logging.handlers import TimedRotatingFileHandler
 
 RADIOMETER_WAIT = 2
+
+_now = time.monotonic      # module level, so that tests can replace the clock
 
 class Radiometer:
 
@@ -54,8 +58,48 @@ class Radiometer:
             return func(self, *args, **kwargs) 
         return wrapper
     
+    # wait for one triggered value at most this long: less than the shot period (1 s),
+    # so that a missing value can never be taken from the next shot
+    READ_TIMEOUT_S = 0.8
+
+    def _parse_value(self, line):
+        """Measured value in a line of the triggered output, None if the line is not a value."""
+        raise NotImplementedError
+
+    @check_open
+    def read_power(self):
+        """Value of the next triggered measurement (10^-3 J); NaN on any error."""
+        if not self.ready:
+            self.log(logging.ERROR, f"RADM_MON_{self.model}: not ready (setup not done)")
+            return math.nan
+        deadline = _now() + self.READ_TIMEOUT_S
+        saved_timeout = self.serial.timeout
+        try:
+            while True:
+                remaining = deadline - _now()
+                if remaining <= 0:
+                    self.log(logging.ERROR, f"RADM_MON_{self.model}: no value within {self.READ_TIMEOUT_S}s")
+                    return math.nan
+                self.serial.timeout = remaining
+                self._rx = getattr(self, '_rx', b"") + self.serial.read_until(b"\r")
+                if not self._rx.endswith(b"\r"):
+                    continue            # timeout in the middle of a line: never parse a cut number
+                line, self._rx = self._rx.decode(errors='replace').strip(), b""
+                if not line:
+                    continue
+                value = self._parse_value(line)
+                if value is not None:
+                    return value
+                self.log(logging.WARNING, f"RADM_MON_{self.model}: skipped unexpected line {line!r}")
+        except serial.SerialException as e:
+            self.log(logging.ERROR, f"RADM_MON_{self.model}: read error: {e}")
+            return math.nan
+        finally:
+            self.serial.timeout = saved_timeout
+
     @check_open
     def flush_buffers(self):
+        self._rx = b""                  # partial line kept by read_power()
         try:
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
@@ -146,21 +190,12 @@ class Radiometer3700(Radiometer):
         self.flush_buffers()
         self.set("RA", range)
 
-    def read_power(self):
-        value = 0
-        if (self.ready == True):
-            # 10-3 Joule unit
-            for i in range(0,5):
-                try:
-                    value = float(self.serial.read_until("\r".encode())[:-1].decode(errors='ignore'))
-                except:
-                    continue
-                else:
-                    return value
-
-            return -1
-        else:
-            print(f"RADM_MON_{self.model}:ERROR Radiometer not ready")
+    def _parse_value(self, line):
+        # triggered output: one plain number per shot
+        try:
+            return float(line)
+        except ValueError:
+            return None
 
 class RadiometerOphir(Radiometer):
 
@@ -226,18 +261,11 @@ class RadiometerOphir(Radiometer):
         self.log(logging.INFO, f"RADM_MON_{self.model}:SET_UP: Radiometer setup completed")
         self.ready = True
 
-    def read_power(self):
-        if (self.ready == True):
-            # 10-3 Joule unit
-            result = self.serial.read_until("\r".encode())[:-1].decode(errors='ignore')
-            if "*" in result:
-                result = result.replace("*", "")
-                try:
-                    result = float(result)
-                except:
-                    return -1
-            return result
-        else:
-            print(f"RADM_MON_{self.model}:ERROR Radiometer not ready")
-    
-
+    def _parse_value(self, line):
+        # triggered output: '*<value>' per shot
+        if not line.startswith("*"):
+            return None
+        try:
+            return float(line[1:])
+        except ValueError:
+            return None

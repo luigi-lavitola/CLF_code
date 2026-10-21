@@ -68,9 +68,11 @@ class RunBase:
 
     SHOT_TIMEOUT_S = 2.5        # 1 Hz sequences: first shot within 1 s + pps delay, then 1 s apart
 
-    def start_shots(self):
-        """Start the FPGA shot sequence, dropping timestamp packets left from before."""
+    def start_shots(self, radiometer):
+        """Start the FPGA shot sequence, dropping timestamp packets and radiometer
+        readings left from before (one triggered reading per shot from here on)."""
         self.dc.data.flush()
+        self.dc.get_radiometer(radiometer).flush_buffers()
         self.dc.fpga.write_dio('laser_start', 1)
 
     def log_shot(self, i, radiometer):
@@ -471,7 +473,7 @@ class RunFD(RunBase):
     def run(self):
         self.log(logging.INFO, "start FD Run")
         self.dc.fpga.write_dio('laser_en', 1)
-        self.start_shots()               # flush stale timestamps, then laser_start
+        self.start_shots('Rad1')         # flush stale timestamps and readings, then laser_start
 
         for i in range(self.nshots):
             self.log_shot(i, 'Rad1')
@@ -636,7 +638,7 @@ class RunTank(RunBase):
     def run(self):
         self.log(logging.INFO, f"start TANK Run ({self.tankname})")
         self.dc.fpga.write_dio('laser_en', 1)
-        self.start_shots()               # flush stale timestamps, then laser_start
+        self.start_shots('Rad1')         # flush stale timestamps and readings, then laser_start
 
         for i in range(self.nshots):
             self.log_shot(i, 'Rad1')
@@ -821,7 +823,7 @@ class RunCalib(RunBase):
         self.log(logging.INFO, "run")
         self.log(logging.INFO, f"start Calib Run")
         self.dc.fpga.write_dio('laser_en', 1)
-        self.start_shots()               # flush stale timestamps, then laser_start
+        self.start_shots('Rad3')         # flush stale timestamps and readings, then laser_start
 
         self.log(logging.INFO, "Starting energy calibration measurements...")
         for i in range(self.nshots):
@@ -832,7 +834,7 @@ class RunCalib(RunBase):
         time.sleep(1)
         self.dc.get_motor("LwPolarizer").move_ABS(0)        #0 deg
         self.dc.fpga.write_dio('laser_en', 1)
-        self.start_shots()               # flush stale timestamps, then laser_start
+        self.start_shots('Rad3')         # flush stale timestamps and readings, then laser_start
         
         self.log(logging.INFO, "Starting polarization calibration measurements at 0 deg...")
         for i in range(self.nshots):
@@ -841,7 +843,7 @@ class RunCalib(RunBase):
         self.log(logging.INFO, "move motors to polarization calibration position...")    
         self.dc.get_motor("LwPolarizer").move_ABS(90*80)    #90 deg
         self.dc.fpga.write_dio('laser_en', 1)
-        self.start_shots()               # flush stale timestamps, then laser_start
+        self.start_shots('Rad3')         # flush stale timestamps and readings, then laser_start
 
         self.log(logging.INFO, "Starting polarization calibration measurements at 90 deg...")
         for i in range(self.nshots):
@@ -850,7 +852,7 @@ class RunCalib(RunBase):
         self.log(logging.INFO, "move motors to polarization calibration position...")    
         self.dc.get_motor("LwPolarizer").move_ABS(180*80)    #180 deg
         self.dc.fpga.write_dio('laser_en', 1)
-        self.start_shots()               # flush stale timestamps, then laser_start
+        self.start_shots('Rad3')         # flush stale timestamps and readings, then laser_start
 
         self.log(logging.INFO, "Starting polarization calibration measurements at 180 deg...")
         for i in range(self.nshots):

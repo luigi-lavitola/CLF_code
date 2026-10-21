@@ -72,6 +72,9 @@ class FakeRadiometer:
     def setup(self):
         pass
 
+    def flush_buffers(self):
+        pass
+
     def read_power(self):
         return 1.0
 
