@@ -14,6 +14,20 @@ CENTURION_BAUD = 57600
 QFREQ = 1             #Rate at which Q-switch is fired relative to doide rate (Default) */
 BUFSIZE = 255         #input, output buffer size */
 
+# Protocol (User's Manual, "General Format Overview"): command "$name data<CR>", only the first
+# 5 characters of name are used; every complete command gets one acknowledgement packet
+# "$name data", "$Bad Command" or "$Bad Value", within 5 seconds.
+RESPONSE_TIMEOUT_S = 5.0
+STATE_FIRE = 0x80       # State Byte D7: FIRE authorized
+
+_now = time.monotonic   # module level, so that tests can replace the clock
+_sleep = time.sleep
+
+
+def _command_name(text):
+    """First 5 characters of the command name, as the laser compares them."""
+    return text.strip().split()[0].lstrip('$')[:5].upper() if text.strip() else ""
+
 class Centurion:
 
     def __init__(self, port, baudrate=57600, parity=serial.PARITY_EVEN, timeout=2, string_return=255):
@@ -37,13 +51,7 @@ class Centurion:
         self.dump_temp = -99
         self.plate_temp = -99 
 
-        try:
-            self.serial = serial.Serial(**self.params)
-        except serial.SerialException as e:
-             self.log(logging.INFO, f"CENT:CONN:Unable to create serial device: {e}: {e}")
-
-        self.serial.port = port
-
+        # logger first: it is needed to report a failure opening the port
         self.logger = logging.getLogger("device")
         self.logger.setLevel(logging.INFO)
         if not self.logger.handlers:
@@ -53,6 +61,14 @@ class Centurion:
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
         self.log = partial(self.logger.log, extra={'classname': self.__class__.__name__})
+
+        try:
+            self.serial = serial.Serial(**self.params)
+        except serial.SerialException as e:
+            self.log(logging.ERROR, f"CENT:CONN:Unable to create serial device: {e}")
+            raise
+
+        self.serial.port = port
 
     def open(self):
         try:
@@ -68,26 +84,63 @@ class Centurion:
         return wrapper        
 
     @check_open
-    def read_response(self):
+    def read_response(self, timeout_s=RESPONSE_TIMEOUT_S):
+        """One acknowledgement packet (up to CR or LF), '' if none arrives within timeout_s.
+
+        Returns as soon as the packet is complete: the old fixed read(255) always waited
+        the whole serial timeout and missed packets arriving later than that."""
+        deadline = _now() + timeout_s
+        saved_timeout = self.serial.timeout
+        data = b""
         try:
-            response = ''.join(filter(str.isprintable, str(self.serial.read(255).decode())))
-            self.log(logging.INFO, response)
-            return response
-        except serial.SerialException: 
-            self.log(logging.INFO, f"CENT:READ_R:ERROR:Unable to read response")
-            return -1
+            while True:
+                remaining = deadline - _now()
+                if remaining <= 0:
+                    break
+                self.serial.timeout = min(remaining, 0.1)
+                c = self.serial.read(1)
+                if not c:
+                    continue
+                if c in b"\r\n":
+                    if data.strip():
+                        break
+                    continue                    # terminator left from the previous packet
+                data += c
+        except serial.SerialException as e:
+            self.log(logging.ERROR, f"CENT:READ_R:ERROR:Unable to read response: {e}")
+            return ""
+        finally:
+            self.serial.timeout = saved_timeout
+        # 'replace': a noise byte must not raise UnicodeDecodeError
+        response = ''.join(filter(str.isprintable, data.decode('ascii', 'replace'))).strip()
+        self.log(logging.INFO, response)
+        return response
 
     @check_open
     def send_command(self, command):
+        """Send a command and return its acknowledgement packet; '' on $Bad Command,
+        $Bad Value, timeout or serial error (all logged)."""
+        command = command.strip()
+        name = _command_name(command)
         try:
-            self.serial.flush()
+            self.serial.reset_input_buffer()    # drop late answers to previous commands
             self.serial.write(f"{command}\r".encode())
-            time.sleep(0.5)
-            response = self.read_response()
-            return response
         except serial.SerialException as e:
-            self.log(logging.INFO, f"CENT:SEND_COMM:Unable to send {command} command: {e}")
-            return -1
+            self.log(logging.ERROR, f"CENT:SEND_COMM:Unable to send {command} command: {e}")
+            return ""
+        deadline = _now() + RESPONSE_TIMEOUT_S
+        while True:
+            response = self.read_response(max(deadline - _now(), 0))
+            if not response:
+                self.log(logging.ERROR, f"CENT:SEND_COMM:no answer to {command} within {RESPONSE_TIMEOUT_S}s")
+                return ""
+            if response.upper().startswith("$BAD"):
+                self.log(logging.ERROR, f"CENT:SEND_COMM:{command} -> {response}")
+                return ""
+            if _command_name(response) == name:
+                return response
+            # answer to an earlier command arrived late: not ours
+            self.log(logging.WARNING, f"CENT:SEND_COMM:{command}: ignored unrelated packet {response!r}")
         
     @check_open
     def flush_buffers(self):
@@ -103,7 +156,7 @@ class Centurion:
     def comm_test(self):
         self.flush_buffers()
         time.sleep(0.1)
-        command = "$HVERS ?\r"
+        command = "$HVERS ?"
         response = self.send_command(command)
         #response = self.read_response()
         self.log(logging.INFO, f"CENT:COMM_TEST:received:{response}")
@@ -116,25 +169,21 @@ class Centurion:
 
     def set_parameter(self, parameter, value):
         parameter_set = self.send_command(f"{parameter} {value}")
-        if parameter_set:
-            preturn = parameter_set.split()
-            if len(preturn) == 2 and preturn[0] == f"{parameter}" and preturn[1] == f'{value}':
-                self.log(logging.INFO, f"CENT:PARAMETER_SET:Parameter {preturn[0]}, value set: {preturn[1]}")
-                return 0
-            else:
-                self.log(logging.INFO, f"CENT:PARAMETER_SET:ERROR:Unable to set parameter {preturn[0]}")
-                return -1
+        preturn = parameter_set.split()
+        if len(preturn) == 2 and preturn[0] == f"{parameter}" and preturn[1] == f'{value}':
+            self.log(logging.INFO, f"CENT:PARAMETER_SET:Parameter {preturn[0]}, value set: {preturn[1]}")
+            return 0
+        self.log(logging.ERROR, f"CENT:PARAMETER_SET:ERROR:Unable to set {parameter} {value} (answer {parameter_set!r})")
+        return -1
 
     def check_parameter(self, parameter):
         parameter_check = self.send_command(f"{parameter} ?")
-        if parameter_check:
-            preturn = parameter_check.split()
-            if len(preturn) == 2 and preturn[0] == f"{parameter}":
-                self.log(logging.INFO, f"CENT:PARAMETER_CHECK:Parameter {preturn[0]}, value checked: {preturn[1]}")
-                return preturn[1]
-            else:
-                self.log(logging.INFO, f"CENT:PARAMETER_CHECK:ERROR:Unable to check parameter {preturn[0]}")
-                return -1
+        preturn = parameter_check.split()
+        if len(preturn) == 2 and preturn[0] == f"{parameter}":
+            self.log(logging.INFO, f"CENT:PARAMETER_CHECK:Parameter {preturn[0]}, value checked: {preturn[1]}")
+            return preturn[1]
+        self.log(logging.ERROR, f"CENT:PARAMETER_CHECK:ERROR:Unable to check {parameter} (answer {parameter_check!r})")
+        return -1
 
     def set_mode(self, freq = 100, diode = 1, qson= 0, qswitch = 1, dtrig = 1, qstrig = 1, dpw = 100, qsdelay = 145):
         
@@ -163,9 +212,11 @@ class Centurion:
                 if self.status() == 0x7E:
                     self.log(logging.INFO, "set up complete")
                     return 0
+            self.log(logging.ERROR, "CENT:SET_MODE:ERROR:state not 0x7E after 3 attempts")
+            return -1
         except Exception as e:
             self.log(logging.INFO, f"CENT:SET_MODE:ERROR:Some problem occurred:{e}")
-            return -1 
+            return -1
         
     def check_mode(self):
         self.flush_buffers()
@@ -200,12 +251,17 @@ class Centurion:
                 return -2  
 
     def status(self):
+        """State Byte, None if the answer is missing or malformed."""
         self.flush_buffers()
         status = self.send_command("$STATUS ?")
-        if status:
-            parts = status.split()
-            if len(parts) == 6 and parts[0] == '$STATUS':
+        parts = status.split()
+        if len(parts) == 6 and parts[0] == '$STATUS':
+            try:
                 return int(parts[1], 16)
+            except ValueError:
+                pass
+        self.log(logging.ERROR, f"CENT:STATUS:ERROR:unexpected answer {status!r}")
+        return None
 
     def read_bytes(self):
         self.flush_buffers()
@@ -278,7 +334,7 @@ class Centurion:
         try:
             self.log(logging.INFO, "CENT:SLEEP:Sending Centurion to sleep")
 
-            sleep = self.send_command("$STOP ?")
+            sleep = self.send_command("$STOP")         # STOP takes no data (manual)
             if sleep:
                 self.log(logging.INFO, f"CENT:SLEEP:Centurion sent to sleep: {sleep}")
                 self.log(logging.INFO, 'ZZZZ...ZZZZ...ZZZZ...')
@@ -310,12 +366,16 @@ class Centurion:
                 return -2        
 
     def temperature(self):
+        """(head, dump, plate) in 1/10 C, None if the answer is missing or malformed."""
         self.flush_buffers()
         temps = self.send_command("$TEMPS ?")
-        if temps:
-            parts = temps.split()
-            if len(parts) == 4 and parts[0] == '$TEMPS':
+        parts = temps.split()
+        if len(parts) == 4 and parts[0] == '$TEMPS':
+            try:
                 return int(parts[1]), int(parts[2]), int(parts[3])
+            except ValueError:
+                pass
+        return None
 
     def fire_auth(self):
         return self.status() == 0x7E
@@ -332,7 +392,7 @@ class Centurion:
             pwdth= self.send_command("$DPW ?")
             if pwdth:
                 parts = pwdth.split()
-                if parts == 2 and parts[0]== 'DPW':
+                if len(parts) == 2 and parts[0] == '$DPW':
                     try:
                         self.pulse_wdth = parts[1]
                         self.log(logging.INFO, f"CENT:CHECK_PULSE_WIDTH:Pulse width: {self.pulse_wdth}")
@@ -362,7 +422,21 @@ class Centurion:
             self.log(logging.ERROR, "CENT:FIRE:temperature readout failed - not firing")
             return -1
         if self.head_temp <= 500 and self.dump_temp <= 450 and self.plate_temp <= 450:
-            self.send_command("$FIRE")
+            if not self.send_command("$FIRE"):
+                self.log(logging.ERROR, "CENT:FIRE:$FIRE not acknowledged - not in fire mode")
+                return -3
+            # the State Byte should now report FIRE (D7). Logged only, to be confirmed on the
+            # real laser before refusing the run on it.
+            deadline = _now() + RESPONSE_TIMEOUT_S
+            while True:
+                state = self.status()
+                if state is not None and state & STATE_FIRE:
+                    break
+                if _now() >= deadline:
+                    self.log(logging.WARNING, f"CENT:FIRE:$FIRE acknowledged but State Byte is "
+                                              f"{state if state is None else hex(state)} (FIRE bit D7 not set)")
+                    break
+                _sleep(0.5)
             return 0
         self.log(logging.ERROR, f"CENT:FIRE:temperature out of range (head {self.head_temp}, "
                                 f"dump {self.dump_temp}, plate {self.plate_temp}) - not firing")

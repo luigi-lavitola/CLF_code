@@ -90,6 +90,21 @@ class RunBase:
         self.log(logging.INFO, f'power {i} shot: {power}, gps_seconds: {gps_seconds}, counter: {counter}, '
                                f'pps distance: {pps}ns, counter cycle: {counter_cycles}', stacklevel=2)
 
+    LASER_READY_TIMEOUT_S = 600     # TEC/diodes conditioning in STANDBY until fire authorization
+
+    def wait_laser_ready(self):
+        """Wait (wall clock) for the laser fire authorization, logging its temperatures."""
+        start = time.monotonic()
+        while not self.dc.laser.fire_auth():
+            elapsed = time.monotonic() - start
+            if elapsed >= self.LASER_READY_TIMEOUT_S:
+                self.log(logging.ERROR, f"laser fire authorization timeout ({self.LASER_READY_TIMEOUT_S}s) - run interrupted", stacklevel=2)
+                return False
+            self.log(logging.INFO, self.dc.laser.temperature(), stacklevel=2)
+            time.sleep(1)
+        self.log(logging.INFO, f"laser fire authorization after {time.monotonic() - start:.0f}s", stacklevel=2)
+        return True
+
     def wait_for(self, condition, timeout_s, what):
         """Poll condition() once per second. True as soon as it holds, False (logged) after timeout_s."""
         for _ in range(timeout_s):
@@ -231,16 +246,8 @@ class RunRaman(RunBase):
 
         self.log(logging.INFO, "laser warmup and wait for laser fire auth")
         self.dc.laser.warmup()
-        laser_timeout_s = 120
-        t = 0
-        while not self.dc.laser.fire_auth():
-            if t >= laser_timeout_s:
-                self.log(logging.ERROR, f"laser fire authorization timeout ({laser_timeout_s}s) - run interrupted")
-                return -1
-            self.log(logging.INFO, self.dc.laser.temperature())
-            #self.dc.laser.standby()
-            time.sleep(1)
-            t += 1
+        if not self.wait_laser_ready():
+            return -1
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "set laser in fire mode...")
@@ -435,16 +442,8 @@ class RunFD(RunBase):
 
         self.log(logging.INFO, "laser warmup and wait for laser fire auth")
         self.dc.laser.warmup()
-        laser_timeout_s = 120
-        t = 0
-        while not self.dc.laser.fire_auth():
-            if t >= laser_timeout_s:
-                self.log(logging.ERROR, f"laser fire authorization timeout ({laser_timeout_s}s) - run interrupted")
-                return -1
-            self.log(logging.INFO, self.dc.laser.temperature())
-            #self.dc.laser.standby()
-            time.sleep(1)
-            t += 1
+        if not self.wait_laser_ready():
+            return -1
         self.log(logging.INFO, "done")
 
         self.dc.fpga.write_bit('timestamp_en', 1)
@@ -600,16 +599,8 @@ class RunTank(RunBase):
 
         self.log(logging.INFO, "laser warmup and wait for laser fire auth")
         self.dc.laser.warmup()
-        laser_timeout_s = 120
-        t = 0
-        while not self.dc.laser.fire_auth():
-            if t >= laser_timeout_s:
-                self.log(logging.ERROR, f"laser fire authorization timeout ({laser_timeout_s}s) - run interrupted")
-                return -1
-            self.log(logging.INFO, self.dc.laser.temperature())
-            #self.dc.laser.standby()
-            time.sleep(1)
-            t += 1
+        if not self.wait_laser_ready():
+            return -1
         self.log(logging.INFO, "done")
 
         self.dc.fpga.write_bit('timestamp_en', 1)
@@ -764,16 +755,8 @@ class RunCalib(RunBase):
 
         self.log(logging.INFO, "laser warmup and wait for laser fire auth")
         self.dc.laser.warmup()
-        laser_timeout_s = 120
-        t = 0
-        while not self.dc.laser.fire_auth():
-            if t >= laser_timeout_s:
-                self.log(logging.ERROR, f"laser fire authorization timeout ({laser_timeout_s}s) - run interrupted")
-                return -1
-            self.log(logging.INFO, self.dc.laser.temperature())
-            #self.dc.laser.standby()
-            time.sleep(1)
-            t += 1
+        if not self.wait_laser_ready():
+            return -1
         self.log(logging.INFO, "done")
 
         self.dc.fpga.write_bit('timestamp_en', 1)

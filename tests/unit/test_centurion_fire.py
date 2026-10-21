@@ -34,7 +34,8 @@ def make_laser(monkeypatch):
             if cmd == "$TEMPS ?":
                 return next(replies)
             if cmd == "$STATUS ?":
-                return "$STATUS 7E 00 00 00 00"
+                # STANDBY ready (0x7E) before $FIRE, FIRE (D7 set, D6 clear) after it
+                return "$STATUS BE 00 00 00 00" if "$FIRE" in sent else "$STATUS 7E 00 00 00 00"
             return cmd
         laser.send_command = send_command
         return laser, sent
@@ -65,4 +66,4 @@ def test_out_of_range_does_not_fire(make_laser):
 def test_in_range_fires(make_laser):
     laser, sent = make_laser(["$TEMPS 500 450 450"])
     assert laser.fire() == 0
-    assert sent[-1] == "$FIRE"
+    assert "$FIRE" in sent                       # followed by $STATUS ? to check the FIRE bit
