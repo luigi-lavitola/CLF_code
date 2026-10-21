@@ -95,37 +95,46 @@ class RunManager:
                 return run
         return None
 
-    def submit(self, runentry, source): 
+    RUN_CLASSES = {
+        RunType.FD: RunFD,
+        RunType.RAMAN: RunRaman,
+        RunType.TANK: RunTank,
+        RunType.CALIB: RunCalib,
+        RunType.MOCK: RunMock,
+    }
+
+    def submit(self, runentry, source):
+        """Start a run. Returns True if the job was started."""
         if not isinstance(runentry, RunEntry):
             raise TypeError
-        self.runentry = runentry
-        if self.job_is_running() == False:
-            if len(self.hk.get_alarm()) > 0:
-                self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to alarms {self.hk.get_alarm()}")
-            else:
-                self.log(logging.INFO, f"start {self.runentry.runtype.name} run")
-                if self.runentry.runtype == RunType.FD:
-                    self.run = RunFD(self.dc, self.params)
-                elif self.runentry.runtype == RunType.RAMAN:
-                    self.run = RunRaman(self.dc, self.params)
-                elif self.runentry.runtype == RunType.TANK:
-                    self.run = RunTank(self.dc, self.params)
-                elif self.runentry.runtype == RunType.CALIB:
-                    self.run = RunCalib(self.dc, self.params)
-                elif self.runentry.runtype == RunType.MOCK:
-                    self.run = RunMock(self.dc, self.params)
+        name = runentry.runtype.name
 
-            if source == 'cli':     # run started from command line interface
-                self.job = multiprocessing.Process(target=self.run.execute)
-                self.job.start()
-            else:                   # run started from scheduler
-                if runentry.last == False:
-                    self.job = multiprocessing.Process(target=self.run.execute, args=(True, False,))
-                else:
-                    self.job = multiprocessing.Process(target=self.run.execute)
-                self.job.start()
+        # self.runentry / self.run describe the job in progress: update them only when a new job starts
+        if self.job_is_running():
+            self.log(logging.ERROR, f"{name} run cannot start due to other job running ({self.runentry.runtype.name})")
+            return False
+
+        alarms = self.hk.get_alarm()
+        if len(alarms) > 0:
+            self.log(logging.ERROR, f"{name} run cannot start due to alarms {alarms}")
+            return False
+
+        run_class = self.RUN_CLASSES.get(runentry.runtype)
+        if run_class is None:
+            self.log(logging.ERROR, f"{name} run cannot start: unknown run type")
+            return False
+
+        self.log(logging.INFO, f"start {name} run")
+        self.runentry = runentry
+        self.run = run_class(self.dc, self.params)
+
+        if source == 'runmanager' and runentry.last == False:
+            # scheduled run that is not the last of the night: keep instruments on (no finish)
+            self.job = multiprocessing.Process(target=self.run.execute, args=(True, False,))
         else:
-            self.log(logging.ERROR, f"{self.runentry.runtype.name} run cannot start due to other job running")
+            self.job = multiprocessing.Process(target=self.run.execute)
+        self.job.start()
+        return True
 
     def stop(self):
         if self.job_is_running():
