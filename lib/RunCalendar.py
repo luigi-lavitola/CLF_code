@@ -55,6 +55,7 @@ class RunCalendar:
                 if num is None:
                     return self.run_entries[i:]
                 return self.run_entries[i:i+num]
+        return []           # calendar exhausted
 
     def get_timetable_for_entry(self, entry):
         ttable = []
@@ -102,8 +103,9 @@ class RunCalendar:
 
             sorted_ttable = sorted(ttable, key=lambda x: x.start_time)
 
-            sorted_ttable[0].first = True
-            sorted_ttable[-1].last = True
+            if sorted_ttable:       # empty when run_list selects no run type
+                sorted_ttable[0].first = True
+                sorted_ttable[-1].last = True
 
         return sorted_ttable
             

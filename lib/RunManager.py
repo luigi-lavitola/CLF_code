@@ -56,25 +56,38 @@ class RunManager:
         self.run = None
         self.job = None
         self.scheduler_running = True
-        self.thr = threading.Thread(target=self.scheduler)
-        self.thr.start()
         self.loop = True
         self.abort_in_progress = False
 
         self.hk.subscribe(self.alarm_handler)
 
+        # start the thread only when every attribute it uses exists
+        self.thr = threading.Thread(target=self.scheduler)
+        self.thr.start()
+
     def scheduler(self):
         self.log(logging.INFO, "start scheduler loop")
         nr = self.next_run()
+        if nr is None:
+            self.log(logging.WARN, "no scheduled runs left in the calendar")
         while self.loop:
-            if datetime.datetime.now() > nr.start_time:
-                if self.scheduler_running:
-                    # start scheduled run 
-                    self.submit(nr, source='runmanager')
-                else:
-                    # warn user about scheduler disabled
-                    self.log(logging.WARN, f"run {nr.runtype.name} expected at {nr.start_time} not started due to scheduler disabled (check 'mode' in CLF cli)")
-                self.runlist.remove(nr)
+            try:
+                if nr is not None and datetime.datetime.now() > nr.start_time:
+                    if self.scheduler_running:
+                        # start scheduled run
+                        self.submit(nr, source='runmanager')
+                    else:
+                        # warn user about scheduler disabled
+                        self.log(logging.WARN, f"run {nr.runtype.name} expected at {nr.start_time} not started due to scheduler disabled (check 'mode' in CLF cli)")
+                    self.runlist.remove(nr)
+                    nr = self.next_run()
+                    if nr is None:
+                        self.log(logging.WARN, "no scheduled runs left in the calendar")
+            except Exception as e:
+                # never let the scheduler thread die: drop the entry that failed and go on
+                self.log(logging.ERROR, f"scheduler error on {nr}: {e!r}", exc_info=True)
+                if nr in self.runlist:
+                    self.runlist.remove(nr)
                 nr = self.next_run()
             time.sleep(1)
 
