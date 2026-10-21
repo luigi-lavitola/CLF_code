@@ -3,7 +3,8 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-import threading 
+import threading
+import logging
 import cmd2
 import time
 from datetime import datetime, timedelta
@@ -14,6 +15,8 @@ from lib.RunManager import RunManager
 from lib.RunCalendar import RunEntry
 from lib.Logger import Logger
 from lib.Run import RunType, RunBase
+from lib.GpsTime import unix_to_gps
+from lib import TimeSync
 
 class App(cmd2.Cmd):
 
@@ -28,7 +31,10 @@ class App(cmd2.Cmd):
         self.dc = DeviceCollection()
         self.dc.init(self.cfg)
 
-        #Logger.init()
+        Logger.init()
+
+        # FPGA seconds counter used in the shot timestamps: verify / align it before any run
+        self.fpga_time_ensure()
 
         self.hk = HouseKeeping(self.cfg.parameters)
         self.thr_hk = threading.Thread(target=self.hk.run)
@@ -47,6 +53,36 @@ class App(cmd2.Cmd):
     # catch CTRL-C to avoid issues with running threads/processes
     def sigint_handler(self, signum, sigframe):
         pass
+
+    def fpga_time_ensure(self):
+        logger = logging.getLogger("run")
+
+        def log(level, msg):
+            print(f"{level.upper()}: {msg}")
+            logger.log(getattr(logging, level.upper()), msg, extra={'classname': 'App'})
+        return TimeSync.ensure(self.dc.fpga, log)
+
+    ## fpga_time ##
+
+    fpga_time_parser = cmd2.Cmd2ArgumentParser()
+    fpga_time_parser.add_argument('action', choices=['check', 'align'])
+
+    @cmd2.with_category('System Control')
+    @cmd2.with_argparser(fpga_time_parser)
+    def do_fpga_time(self, args):
+        """check the FPGA seconds counter (timestamps) or align it to the host clock"""
+        if args.action == 'check':
+            off = TimeSync.offset(self.dc.fpga)
+            fpga_unix = int(time.time()) + off
+            print(f"FPGA {fpga_unix} (GPS {unix_to_gps(fpga_unix)}), offset from host {off} s")
+            return
+        if self.mode == 'auto':
+            print("E: set mode to manual")
+            return
+        if self.rm.job_is_running():
+            print("E: run in progress")
+            return
+        self.fpga_time_ensure()
 
     ## mode ##
 

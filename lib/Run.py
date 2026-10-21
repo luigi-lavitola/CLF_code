@@ -9,6 +9,8 @@ from logging.handlers import TimedRotatingFileHandler
 from lib.DeviceCollection import DeviceCollection
 from lib.Helpers import *
 from lib.Hardware import get_profile, trigger_delay_ticks
+from lib.GpsTime import unix_to_gps
+from lib import TimeSync
 
 class RunType(Enum):
     RAMAN = 1,
@@ -54,6 +56,23 @@ class RunBase:
         self.dc.fpga.write_register('pulse_energy', self.energy_ticks)
         self.dc.fpga.write_register('pulse_period', self.hw.period(period_s))
         self.dc.fpga.write_register('shots_num', nshots)
+
+    def sync_time(self):
+        """Check (and align if needed) the FPGA seconds counter used in the shot timestamps.
+        On failure the run goes on: shots are triggered by the PPS, not by this counter."""
+        levels = {'info': logging.INFO, 'warning': logging.WARNING, 'error': logging.ERROR}
+        ok = TimeSync.ensure(self.dc.fpga, lambda lvl, msg: self.log(levels[lvl], msg, stacklevel=3))
+        if not ok:
+            self.log(logging.ERROR, "timestamps of this run will have wrong seconds")
+        return ok
+
+    def log_shot(self, i, radiometer):
+        """Read radiometer power and FPGA timestamp of one shot and log them (GPS time)."""
+        power = self.dc.get_radiometer(radiometer).read_power()
+        seconds, counter, pps, counter_cycles = self.dc.data.read_event()
+        gps_seconds = unix_to_gps(seconds) if seconds else 0      # 0 = no packet read
+        self.log(logging.INFO, f'power {i} shot: {power}, gps_seconds: {gps_seconds}, counter: {counter}, '
+                               f'pps distance: {pps}ns, counter cycle: {counter_cycles}', stacklevel=2)
 
     def wait_for(self, condition, timeout_s, what):
         """Poll condition() once per second. True as soon as it holds, False (logged) after timeout_s."""
@@ -339,6 +358,7 @@ class RunFD(RunBase):
         
     def prepare(self):
         self.log(logging.INFO, "prepare")
+        self.sync_time()
         self.log(logging.INFO, "configure FPGA registers for FD run")
         self.dc.fpga.write_bit('laser_en', 1)
         self.dc.fpga.write_bit('timestamp_en', 0)
@@ -440,9 +460,7 @@ class RunFD(RunBase):
         self.dc.fpga.write_dio('laser_start', 1)
 
         for i in range(self.nshots):
-            power=self.dc.get_radiometer('Rad1').read_power()
-            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
-            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
+            self.log_shot(i, 'Rad1')
         
         self.log(logging.INFO, "set laser standby")
         self.dc.laser.standby()
@@ -506,6 +524,7 @@ class RunTank(RunBase):
 
     def prepare(self):
         self.log(logging.INFO, "prepare")
+        self.sync_time()
         #print("configure FPGA registers for TANK run ({self.tankname})...")
         self.dc.fpga.write_bit('laser_en', 1)
         self.configure_shots(self.trigger_delay('tank'), 1.0, self.nshots)   # 1 Hz
@@ -606,9 +625,7 @@ class RunTank(RunBase):
         self.dc.fpga.write_dio('laser_start', 1)
 
         for i in range(self.nshots):
-            power=self.dc.get_radiometer('Rad1').read_power()
-            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
-            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
+            self.log_shot(i, 'Rad1')
 
         self.log(logging.INFO, "set laser standby")
         self.dc.laser.standby()
@@ -670,6 +687,7 @@ class RunCalib(RunBase):
 
     def prepare(self):
         self.log(logging.INFO, "Prepare run for energy calibration")
+        self.sync_time()
         self.log(logging.INFO, "configure FPGA registers for Calibration run...")
         
         self.dc.fpga.write_bit('laser_en', 1)
@@ -793,9 +811,7 @@ class RunCalib(RunBase):
 
         self.log(logging.INFO, "Starting energy calibration measurements...")
         for i in range(self.nshots):
-            power=self.dc.get_radiometer('Rad3').read_power()
-            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
-            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
+            self.log_shot(i, 'Rad3')
 
         self.log(logging.INFO, "move motors to polarization calibration position...")    
         self.dc.get_motor("LwNorthSouth").move_ABS(self.dc.get_motor("LwNorthSouth").pcal_position)  
@@ -806,9 +822,7 @@ class RunCalib(RunBase):
         
         self.log(logging.INFO, "Starting polarization calibration measurements at 0 deg...")
         for i in range(self.nshots):
-            power=self.dc.get_radiometer('Rad3').read_power()
-            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
-            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
+            self.log_shot(i, 'Rad3')
 
         self.log(logging.INFO, "move motors to polarization calibration position...")    
         self.dc.get_motor("LwPolarizer").move_ABS(90*80)    #90 deg
@@ -817,9 +831,7 @@ class RunCalib(RunBase):
 
         self.log(logging.INFO, "Starting polarization calibration measurements at 90 deg...")
         for i in range(self.nshots):
-            power=self.dc.get_radiometer('Rad3').read_power()
-            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
-            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
+            self.log_shot(i, 'Rad3')
 
         self.log(logging.INFO, "move motors to polarization calibration position...")    
         self.dc.get_motor("LwPolarizer").move_ABS(180*80)    #180 deg
@@ -828,9 +840,7 @@ class RunCalib(RunBase):
 
         self.log(logging.INFO, "Starting polarization calibration measurements at 180 deg...")
         for i in range(self.nshots):
-            power=self.dc.get_radiometer('Rad3').read_power()
-            seconds, counter, pps, counter_cycles = self.dc.data.read_event()
-            self.log(logging.INFO, f'power {i} shot: {power}, seconds: {seconds}, counter: {counter}, pps distance: {pps}ns, counter cycle: {counter_cycles}')
+            self.log_shot(i, 'Rad3')
 
 
         self.log(logging.INFO, "set laser standby")

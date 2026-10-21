@@ -8,6 +8,7 @@ class Logger:
     @classmethod
     def init(self):
         logger = logging.getLogger("run")
+        logger.setLevel(logging.INFO)
         if not logger.handlers:
             formatter = logging.Formatter('%(asctime)s - %(classname)s::%(funcName)s - %(levelname)s - %(message)s')
             handler = TimedRotatingFileHandler('logs/run.log', when='midnight',

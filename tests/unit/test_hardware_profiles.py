@@ -103,6 +103,7 @@ def test_firmware_check():
 @pytest.fixture(autouse=True)
 def no_wait(monkeypatch):
     monkeypatch.setattr(run_module.time, "sleep", lambda s: None)
+    monkeypatch.setattr(run_module.TimeSync, "ensure", lambda fpga, log: True)   # tested in test_gps_time
 
 
 def registers_after_prepare(run_class, p):
