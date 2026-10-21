@@ -33,6 +33,17 @@ class RunBase:
             self.logger.addHandler(handler)
         self.log = partial(self.logger.log, extra={'classname': self.__class__.__name__})
 
+    def wait_for(self, condition, timeout_s, what):
+        """Poll condition() once per second. True as soon as it holds, False (logged) after timeout_s."""
+        for _ in range(timeout_s):
+            if condition():
+                return True
+            time.sleep(1)
+        if condition():
+            return True
+        self.log(logging.ERROR, f"{what} timeout ({timeout_s}s)", stacklevel=2)
+        return False
+
     def execute(self, do_prepare=True, do_finish=True):
         ret = None
         if do_prepare:
@@ -235,32 +246,28 @@ class RunRaman(RunBase):
         WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_cover").off)
         self.log(logging.INFO, "done")
 
-        cover_timeout_s = 120
-        t = 0
-        self.log(logging.INFO, "wait for open limit switch release")
-        while self.dc.fpga.read_dio('cover_raman_open') == True:
-            if t >= cover_timeout_s:
-                self.log(logging.ERROR, f"limit switch release timeout ({cover_timeout_s}) - run interrupted")
-                return -1
-            time.sleep(1)
-            t += 1
-        self.log(logging.INFO, "done")
+        # on timeout keep going: the rest of the shutdown must run anyway
+        self.close_cover_wait()
 
-        cover_timeout_s = 120
-        t = 0
-        self.log(logging.INFO, "wait cover closing")
-        while self.dc.fpga.read_dio('cover_raman_open') == self.dc.fpga.read_dio('cover_raman_closed'):
-            if t >= laser_timeout_s:
-                self.log(logging.ERROR, f"cover close timeout ({cover_timeout_s}) - run interrupted")
-                return -1
-            time.sleep(1)
-            t += 1
-        self.log(logging.INFO, "done")
-        
         time.sleep(2)
         self.log(logging.INFO, "turn off RAMAN DAQ...")
         WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_inst").off)
         self.log(logging.INFO, "done")
+
+    def close_cover_wait(self, timeout_s=120):
+        """Wait for the RAMAN cover to close after its outlet was switched off. False on timeout."""
+        self.log(logging.INFO, "wait for open limit switch release")
+        if not self.wait_for(lambda: not self.dc.fpga.read_dio('cover_raman_open'),
+                             timeout_s, "limit switch release"):
+            return False
+        self.log(logging.INFO, "done")
+
+        self.log(logging.INFO, "wait cover closing")
+        if not self.wait_for(lambda: self.dc.fpga.read_dio('cover_raman_open') != self.dc.fpga.read_dio('cover_raman_closed'),
+                             timeout_s, "cover close"):
+            return False
+        self.log(logging.INFO, "done")
+        return True
 
     def finish(self):
 
@@ -294,27 +301,8 @@ class RunRaman(RunBase):
         WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_cover").off)
         self.log(logging.INFO, "done")
 
-        cover_timeout_s = 120
-        t = 0
-        self.log(logging.INFO, "wait for open limit switch release")
-        while self.dc.fpga.read_dio('cover_raman_open') == True:
-            if t >= cover_timeout_s:
-                self.log(logging.ERROR, f"limit switch release timeout ({cover_timeout_s}) - run interrupted")
-                return -1
-            time.sleep(1)
-            t += 1
-        self.log(logging.INFO, "done")
-
-        cover_timeout_s = 120
-        t = 0
-        self.log(logging.INFO, "wait cover closing")
-        while self.dc.fpga.read_dio('cover_raman_open') == self.dc.fpga.read_dio('cover_raman_closed'):
-            if t >= laser_timeout_s:
-                self.log(logging.ERROR, f"cover close timeout ({cover_timeout_s}) - run interrupted")
-                return -1
-            time.sleep(1)
-            t += 1
-        self.log(logging.INFO, "done")
+        # on timeout keep going: the rest of the shutdown must run anyway
+        self.close_cover_wait()
 
         self.log(logging.INFO, "unselect RAMAN beam")
         self.dc.fpga.write_dio('flipper_raman', False)
