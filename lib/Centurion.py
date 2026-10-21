@@ -355,9 +355,18 @@ class Centurion:
         #    self.send_command("$STAND")
         #    status = self.read_status()
 
-        self.check_temps()
+        # fire only on a successful *current* readout: on failure the old (or initial -99)
+        # values would pass the limits below
+        self.head_temp = self.dump_temp = self.plate_temp = None
+        if self.check_temps() != 0:
+            self.log(logging.ERROR, "CENT:FIRE:temperature readout failed - not firing")
+            return -1
         if self.head_temp <= 500 and self.dump_temp <= 450 and self.plate_temp <= 450:
             self.send_command("$FIRE")
+            return 0
+        self.log(logging.ERROR, f"CENT:FIRE:temperature out of range (head {self.head_temp}, "
+                                f"dump {self.dump_temp}, plate {self.plate_temp}) - not firing")
+        return -2
            
 
 if __name__ == "__main__":

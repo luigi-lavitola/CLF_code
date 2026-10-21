@@ -191,7 +191,9 @@ class RunRaman(RunBase):
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "set laser in fire mode...")
-        self.dc.laser.fire()
+        if self.dc.laser.fire() != 0:
+            self.log(logging.ERROR, "laser refused fire mode (see device.log) - run interrupted")
+            return -1
         self.log(logging.INFO, "done")
 
         return 0
@@ -413,7 +415,9 @@ class RunFD(RunBase):
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "set laser in fire mode...")
-        self.dc.laser.fire()
+        if self.dc.laser.fire() != 0:
+            self.log(logging.ERROR, "laser refused fire mode (see device.log) - run interrupted")
+            return -1
         self.log(logging.INFO, "done")
 
         return 0
@@ -583,7 +587,9 @@ class RunTank(RunBase):
         self.log(logging.INFO, "done")
 
         self.log(logging.INFO, "set laser in fire mode...")
-        self.dc.laser.fire()
+        if self.dc.laser.fire() != 0:
+            self.log(logging.ERROR, "laser refused fire mode (see device.log) - run interrupted")
+            return -1
         self.log(logging.INFO, "done")
 
         return 0
@@ -771,7 +777,9 @@ class RunCalib(RunBase):
         
 
         self.log(logging.INFO, "set laser in fire mode...")
-        self.dc.laser.fire()
+        if self.dc.laser.fire() != 0:
+            self.log(logging.ERROR, "laser refused fire mode (see device.log) - run interrupted")
+            return -1
         self.log(logging.INFO, "done")
 
         return 0

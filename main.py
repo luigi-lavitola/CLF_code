@@ -360,8 +360,9 @@ class App(cmd2.Cmd):
         if self.mode == 'auto':
             print("E: set mode to manual")
             return
-        self.dc.laser.fire()
-    
+        if self.dc.laser.fire() != 0:
+            print("E: laser not in fire mode (temperature readout failed or out of range, see device.log)")
+
     def laserenergy(self, args):
         if self.mode == 'auto':
             print("E: set mode to manual")
