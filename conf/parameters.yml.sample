@@ -4,16 +4,25 @@
 #identity:   xlf
 #---
 
+# hw_version: FPGA board + firmware of the site (lib/Hardware.py)
+#   1 = 100 MHz VCXO (original board)     2 = LEA-M8F, 122.88 MHz
+# *_trigger_ms: laser trigger (Diode_Out) time after the GPS second, in ms.
+#   The pps_delay register is computed from it for the hw_version in use.
+#   Values below reproduce the pps_delay used so far on hw_version 1
+#   (fd 24982000 / 34982000, tank 49982000 / 69982000 ticks).
+
 clf:
+  hw_version: 1
   run_list: [fd, tank, raman, calib]
-  fd_pps_delay:  24982000
-  tank_pps_delay: 49982000
+  fd_trigger_ms:  249.99411
+  tank_trigger_ms: 499.99411
   start_minutes: [5, 20, 35, 50]
   tank_name: celeste
 
 xlf:
+  hw_version: 1
   run_list: [fd, tank, calib]
-  fd_pps_delay:  34982000
-  tank_pps_delay: 69982000
+  fd_trigger_ms:  349.99411
+  tank_trigger_ms: 699.99411
   start_minutes: [5, 20, 35, 50]
   tank_name: ramiro

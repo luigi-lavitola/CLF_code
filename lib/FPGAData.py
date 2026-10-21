@@ -22,6 +22,7 @@ class FPGAData:
         self.buffer = ""
         self.start_idx =0
         self.end_idx=0
+        self.tick_ns = 10.0     # FPGA clock period, set from the hw profile by DeviceCollection.init()
 
         try:
             self.serial = serial.Serial(self.port, self.baudrate, timeout=0.5)
@@ -66,8 +67,8 @@ class FPGAData:
                 raise ValueError("Dati incompleti")
 
             seconds = (int(values[0], 16) << 16) + int(values[1], 16)
-            counter = ((int(values[2], 16) << 16) + int(values[3], 16)) * 10
-            pps_delta = (int(values[4], 16) - 32767) * 10
+            counter = ((int(values[2], 16) << 16) + int(values[3], 16)) * self.tick_ns
+            pps_delta = (int(values[4], 16) - 32767) * self.tick_ns
             counter_pulses = int(values[5], 16)
 
             return seconds, counter, pps_delta, counter_pulses

@@ -13,7 +13,7 @@ from lib.HouseKeeping import HouseKeeping
 from lib.RunManager import RunManager
 from lib.RunCalendar import RunEntry
 from lib.Logger import Logger
-from lib.Run import RunType
+from lib.Run import RunType, RunBase
 
 class App(cmd2.Cmd):
 
@@ -495,13 +495,13 @@ class App(cmd2.Cmd):
         if frequency < 1 or frequency > 100:
             print("E: frequency must be between 1 and 100 Hz")
             return
-        period = int(100_000_000 / frequency)
+        hw = self.dc.hw
         self.dc.fpga.write_register('pps_delay', 0)
         self.dc.fpga.write_bit('laser_en', 1)
         self.dc.fpga.write_bit('timestamp_en', 0)
-        self.dc.fpga.write_register('pulse_width', 10_000)  # 100 us
-        self.dc.fpga.write_register('pulse_energy', 17_400) # 140 us = 174 us, maximum
-        self.dc.fpga.write_register('pulse_period', period) # 10 ms
+        self.dc.fpga.write_register('pulse_width', hw.ticks(RunBase.PULSE_WIDTH_S))
+        self.dc.fpga.write_register('pulse_energy', hw.ticks(RunBase.PULSE_ENERGY_S))
+        self.dc.fpga.write_register('pulse_period', hw.period(1.0 / frequency))
         self.dc.fpga.write_register('shots_num', n_shots)
         print(f"Firing {n_shots} shots at {frequency} Hz ...")
         self.dc.fpga.write_dio('laser_start', 1)

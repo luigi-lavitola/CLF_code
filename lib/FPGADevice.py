@@ -50,6 +50,7 @@ class FPGADevice:
         self.regmap["mux_bnc_4"] = FPGARegister(0x21)
         self.regmap["shots_num"] = FPGARegister(0x22, 2)
         self.regmap["shots_cnt"] = FPGARegister(0x24, 2)
+        self.regmap["fw_version"] = FPGARegister(0xFF)      # 0 on firmware without the register
 
         self.iomap = {}
         self.iomap["laser_start"] = FPGAIO(0x3, 0)

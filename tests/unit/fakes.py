@@ -51,6 +51,47 @@ class FakeLaser:
     def standby(self):
         self.events.append(("laser", "standby"))
 
+    def set_mode(self, **kwargs):
+        self.events.append(("laser", "set_mode"))
+
+    def warmup(self):
+        self.events.append(("laser", "warmup"))
+
+    def fire_auth(self):
+        return True
+
+    def temperature(self):
+        return (300, 200, 200)
+
+    def fire(self):
+        self.events.append(("laser", "fire"))
+        return 0
+
+
+class FakeRadiometer:
+    def setup(self):
+        pass
+
+    def read_power(self):
+        return 1.0
+
+
+class FakeMotor:
+    ecal_position = 0
+    pcal_position = 0
+
+    def init(self):
+        pass
+
+    def move_Neg0(self):
+        pass
+
+    def set_ABSzero(self):
+        pass
+
+    def move_ABS(self, pos):
+        pass
+
 
 class FakeDC:
     def __init__(self, dio=None, registers=None):
@@ -63,3 +104,9 @@ class FakeDC:
         if name not in self.outlets:
             self.outlets[name] = FakeOutlet(name, self.events)
         return self.outlets[name]
+
+    def get_radiometer(self, name):
+        return FakeRadiometer()
+
+    def get_motor(self, name):
+        return FakeMotor()
