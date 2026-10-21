@@ -24,6 +24,7 @@ def make_hk(identity, gps_mode=3):
     h.data = copy.deepcopy(load_sensors(identity))
     h.alarm_data = []
     h.gpsd = types.SimpleNamespace(fix=types.SimpleNamespace(mode=gps_mode))
+    h.gps_fix_str = ["unknown", "no fix", "2D", "3D"]
     return h
 
 
@@ -52,6 +53,23 @@ def test_rain_raises_alarm(identity):
     set_values(h, rain=True)
     h.check_alarm()
     assert "rain" in [a['name'] for a in h.get_alarm()]
+
+
+@pytest.mark.parametrize("identity", ["clf", "xlf"])
+@pytest.mark.parametrize("mode,pps,alarm", [
+    (3, True, False),       # 3D fix + PPS: ok
+    (2, True, False),       # 2D fix is enough for timing
+    (1, True, True),        # gpsd: no fix
+    (0, True, True),        # gpsd: unknown
+    (3, False, True),       # fix but the FPGA does not see the PPS
+])
+def test_gps_alarm(identity, mode, pps, alarm):
+    h = make_hk(identity, gps_mode=mode)
+    h.fpga = types.SimpleNamespace(read_dio=lambda name: {"pps_present": pps}[name])
+    h.data = [d for d in h.data if d['dev'] == 'gps']        # collect only the gps entry
+    h.collect_data()
+    h.check_alarm()
+    assert ("gps_fix" in [a['name'] for a in h.get_alarm()]) is alarm
 
 
 @pytest.mark.parametrize("identity", ["clf", "xlf"])

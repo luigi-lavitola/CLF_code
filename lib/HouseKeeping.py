@@ -123,8 +123,11 @@ class HouseKeeping:
                     d['value'] = self.fpga.read_dio(d['name'])
             elif d['dev'] == 'gps':
                 if d['name'] == 'gps_fix':
-                    d['value'] = self.gpsd.fix.mode > 1
-                    d['info'] = self.gps_fix_str[self.gpsd.fix.mode]
+                    # usable time reference = gpsd has a fix AND the FPGA sees the PPS
+                    mode = self.gpsd.fix.mode
+                    pps = self.fpga.read_dio('pps_present')
+                    d['value'] = mode > 1 and pps
+                    d['info'] = f"{self.gps_fix_str[mode]}, PPS {'present' if pps else 'missing'}"
 
     def log_data(self):
         s = ''
@@ -161,7 +164,10 @@ class HouseKeeping:
                             d['alarm'] = False
                 elif d['dev'] == 'gps':
                     if d['name'] == 'gps_fix':
-                        d['alarm'] = self.gpsd.fix.mode <= 1
+                        # without time reference FD/tank shots would be at the wrong time
+                        d['alarm'] = not d['value']
+                        if d['alarm']:
+                            alarm_data.append(d)
 
         self.alarm_data = alarm_data
         if len(alarm_data):
