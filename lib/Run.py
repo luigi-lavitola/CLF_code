@@ -861,7 +861,10 @@ class RunCalib(RunBase):
 
     def abort(self):
         self.log(logging.INFO, "abort")
-        
+
+        # stop the FPGA shot sequence first, as the other runs do
+        self.dc.fpga.write_dio('laser_en', 0)
+
         self.log(logging.INFO, "set laser standby")
         self.dc.laser.standby()
         self.log(logging.INFO, "done")
