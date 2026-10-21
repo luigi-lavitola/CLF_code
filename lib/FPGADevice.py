@@ -66,7 +66,8 @@ class FPGADevice:
         self.iomap["flipper_raman"] = FPGAIO(0x17, 2)
         self.iomap["flipper_atten"] = FPGAIO(0x17, 3)
 
-        self.iomap["pps_ok"] = FPGAIO(0x7, 2)
+        self.iomap["pps_ok"] = FPGAIO(0x7, 8)       # PPS_PRESENT (bit 2 is Freq_Back_OK, not driven)
+        self.iomap["pps_present"] = FPGAIO(0x7, 8)
         self.iomap["jc_lock"] = FPGAIO(0x8, 2)
         self.iomap["vcxo_lock"] = FPGAIO(0x8, 3)
         self.iomap["force_align"] = FPGAIO(0x9, 4)
@@ -106,6 +107,11 @@ class FPGADevice:
             raise NameError
         addr = self.regmap[name].get_addr()
         width = self.regmap[name].get_width()
+        if name == "time_cnt":
+            # 0x0D = Time_Tag[15:0] (reading it latches 0x0E), 0x0E = Time_Tag[26:11], not [31:16]
+            lo = self.read_address(addr)
+            hi = self.read_address(addr + 1)
+            return (hi << 11) | (lo & 0x7FF)
         i = value = 0
         while i < width:
             value = value | (self.read_address(addr+i) << (i * 16))
