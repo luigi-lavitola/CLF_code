@@ -1,0 +1,64 @@
+"""HouseKeeping.check_alarm() with the real sensor configuration files of CLF and XLF."""
+
+import copy
+import logging
+import os
+import types
+
+import pytest
+import yaml
+
+from lib.HouseKeeping import HouseKeeping
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def load_sensors(identity):
+    with open(os.path.join(ROOT, "conf", identity, "sensors.yml")) as f:
+        return [e for doc in yaml.safe_load_all(f) for e in doc]
+
+
+def make_hk(identity, gps_mode=3):
+    h = HouseKeeping.__new__(HouseKeeping)
+    h.log = logging.getLogger("test_hk")
+    h.data = copy.deepcopy(load_sensors(identity))
+    h.alarm_data = []
+    h.gpsd = types.SimpleNamespace(fix=types.SimpleNamespace(mode=gps_mode))
+    return h
+
+
+def set_values(h, rain):
+    """Readout values within limits, with or without rain (as collect_data() would leave them)."""
+    for d in h.data:
+        if d['dev'] == 'tla':
+            d['value'] = bool(rain) if d['name'] == 'rain' else (d['min'] + d['max']) / 2 if 'min' in d else 12.0
+        elif d['dev'] == 'dio':
+            d['value'] = bool(rain) if d['name'] == 'rain' else False
+            if d['name'] == 'rain':
+                d['error'] = False
+
+
+@pytest.mark.parametrize("identity", ["clf", "xlf"])
+def test_every_configured_alarm_can_be_evaluated(identity):
+    h = make_hk(identity)
+    set_values(h, rain=False)
+    h.check_alarm()                                  # must not raise (KeyError on min/max, ...)
+    assert h.get_alarm() == []
+
+
+@pytest.mark.parametrize("identity", ["clf", "xlf"])
+def test_rain_raises_alarm(identity):
+    h = make_hk(identity)
+    set_values(h, rain=True)
+    h.check_alarm()
+    assert "rain" in [a['name'] for a in h.get_alarm()]
+
+
+@pytest.mark.parametrize("identity", ["clf", "xlf"])
+def test_battery_out_of_range(identity):
+    h = make_hk(identity)
+    set_values(h, rain=False)
+    battery = next(d for d in h.data if d['name'] == 'battery1')
+    battery['value'] = battery['min'] - 0.5
+    h.check_alarm()
+    assert [a['name'] for a in h.get_alarm()] == ["battery1"]

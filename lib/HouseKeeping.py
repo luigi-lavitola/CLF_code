@@ -142,7 +142,12 @@ class HouseKeeping:
         for d in self.data:
             if d.get('alarm', None) is not None:
                 if d['dev'] == 'tla':
-                    if (d['value'] < d['min']) or (d['value'] > d['max']):
+                    if d['name'] == 'rain':
+                        # analog rain sensor (XLF): value is already the boolean from collect_data()
+                        d['alarm'] = bool(d['value'])
+                        if d['alarm']:
+                            alarm_data.append(d)
+                    elif (d['value'] < d['min']) or (d['value'] > d['max']):
                         d['alarm'] = True
                         alarm_data.append(d)
                     else:

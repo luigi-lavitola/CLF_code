@@ -51,6 +51,7 @@
   value: 0
   coeff: 1
   scalar: -645
+  alarm: False
 
 - dev: ltc
   name: t0
