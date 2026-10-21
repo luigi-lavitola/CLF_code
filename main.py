@@ -291,7 +291,7 @@ class App(cmd2.Cmd):
         while self.dc.fpga.read_dio('cover_raman_open') == self.dc.fpga.read_dio('cover_raman_closed'):
             if t >= cover_timeout_s:
                 print(f"cover open timeout ({cover_timeout_s}) error")
-                #return -1
+                return
             time.sleep(1)
             t += 1
     
@@ -307,6 +307,7 @@ class App(cmd2.Cmd):
         while self.dc.fpga.read_dio('cover_raman_open') == True:
             if t >= cover_timeout_s:
                 print(f"cover close timeout ({cover_timeout_s}) error")
+                return
             time.sleep(1)
             t += 1
     
@@ -365,7 +366,7 @@ class App(cmd2.Cmd):
         if self.mode == 'auto':
             print("E: set mode to manual")
             return
-        self.dc.laser.set_pwdth(args.value)
+        self.dc.laser.set_pwdth(args.num)
     
     def lasertemps(self, args):
         if self.mode == 'auto':
