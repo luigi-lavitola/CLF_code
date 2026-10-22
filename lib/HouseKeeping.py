@@ -16,6 +16,7 @@ from lib.LTC2983 import LTC2983
 from lib.LTC2983_const import *
 from lib.FPGADevice import FPGADevice
 from lib.GpsInfo import GpsStatus, FIELDS as GPS_FIELDS
+from lib.Hardware import get_profile
 
 class HouseKeeping:
 
@@ -45,6 +46,7 @@ class HouseKeeping:
 
         self.params = params
         self.identity = str.lower(self.params['identity'])
+        self.tick_ns = get_profile(self.params).tick_ns      # FPGA clock period for gps_ns_error
 
         self.log = logging.getLogger("housekeeping")
         self.log.setLevel(logging.INFO)
@@ -145,6 +147,9 @@ class HouseKeeping:
                     pps = self.fpga.read_dio('pps_present')
                     d['value'] = mode > 1 and pps
                     d['info'] = f"{self.gps_fix_str[mode]}, PPS {'present' if pps else 'missing'}"
+                elif d['name'] == 'gps_ns_error':
+                    # GPS PPS - local PPS measured by the FPGA (same zero as the shot log)
+                    d['value'] = (self.fpga.read_register('pps_distance') - 32767) * getattr(self, 'tick_ns', 10.0)
                 elif d['name'] in GPS_FIELDS:
                     if gps_values is None:
                         gps_values = self.gps_status.values(time.time())
@@ -187,6 +192,14 @@ class HouseKeeping:
                     if d['name'] == 'gps_fix':
                         # without time reference FD/tank shots would be at the wrong time
                         d['alarm'] = not d['value']
+                        if d['alarm']:
+                            alarm_data.append(d)
+                    elif 'min' in d or 'max' in d:
+                        # e.g. gps_ns_error, gps_fix_age: limits in sensors.yml; a value that
+                        # cannot be measured (NaN) is an alarm too
+                        v = d['value']
+                        d['alarm'] = (v is None or v != v
+                                      or v < d.get('min', float('-inf')) or v > d.get('max', float('inf')))
                         if d['alarm']:
                             alarm_data.append(d)
 

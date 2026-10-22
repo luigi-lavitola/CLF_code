@@ -52,7 +52,10 @@ def test_missing_fields_are_nan():
 
 def test_stale_reports_not_used():
     v = status(TPV, SKY, at=NOW - 60).values(NOW)
-    assert all(math.isnan(v[k]) for k in FIELDS)
+    assert all(math.isnan(v[k]) for k in FIELDS if k != "gps_fix_age")
+    # the fix age uses the last TPV on purpose and is computed from its fix time
+    # (2026-09-21T14:13:19.800Z = NOW - 0.2 s), not from when the report arrived
+    assert v["gps_fix_age"] == pytest.approx(0.2, abs=0.05)
 
 
 def test_clock_offset_from_tpv_without_pps():

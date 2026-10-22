@@ -1,0 +1,7 @@
+# FPGA digital inputs wired differently on the CLF (DB25 connector, reg 0x16).
+# name: [register, bit, inverted]   -- overrides lib/FPGADevice.py iomap (XLF wiring)
+# From the code running at the CLF (2026-10-22).
+rain:               [0x16, 2, false]
+norain:             [0x16, 3, false]
+cover_steer_closed: [0x16, 4, true]
+cover_steer_open:   [0x16, 5, true]

@@ -24,6 +24,7 @@ class DeviceCollection:
         # hardware profile: clock for the timestamp conversion, firmware version check
         self.hw = get_profile(cfg.parameters)
         self.data.tick_ns = self.hw.tick_ns
+        self.fpga.apply_dio_map(getattr(cfg, 'dio', {}))      # site wiring (conf/<site>/dio.yml)
         check_firmware(self.fpga, self.hw)
 
         # outlets

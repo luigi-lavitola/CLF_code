@@ -93,6 +93,22 @@
   alarm: False
   info: ""
 
+- dev: gps
+  name: gps_ns_error          # GPS PPS - local PPS from the FPGA (pps_distance), ns
+  value: 0
+  unit: ns
+  min: -100                   # outside [min, max] (or not readable): blocking alarm
+  max: 100
+  alarm: False
+
+- dev: gps
+  name: gps_fix_age           # age of the last gpsd fix, s
+  value: 0
+  unit: s
+  min: 0
+  max: 60                     # older (or no fix time): blocking alarm
+  alarm: False
+
 # receiver / time reference information from gpsd (lib/GpsInfo.py), no alarm.
 # Kept at the end of the file: hk.csv has no header, columns follow this order.
 

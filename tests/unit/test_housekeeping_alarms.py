@@ -55,7 +55,9 @@ def test_rain_raises_alarm(identity):
     h = make_hk(identity)
     set_values(h, rain=True)
     h.check_alarm()
-    assert "rain" in [a['name'] for a in h.get_alarm()]
+    rain_enabled = "alarm" in [d for d in load_sensors(identity) if d['name'] == 'rain'][0]
+    # CLF: rain alarm disabled in conf/clf/sensors.yml (as on site)
+    assert ("rain" in [a['name'] for a in h.get_alarm()]) is rain_enabled
 
 
 @pytest.mark.parametrize("identity", ["clf", "xlf"])
@@ -68,7 +70,8 @@ def test_rain_raises_alarm(identity):
 ])
 def test_gps_alarm(identity, mode, pps, alarm):
     h = make_hk(identity, gps_mode=mode)
-    h.fpga = types.SimpleNamespace(read_dio=lambda name: {"pps_present": pps}[name])
+    h.fpga = types.SimpleNamespace(read_dio=lambda name: {"pps_present": pps}[name],
+                                   read_register=lambda name: {"pps_distance": 32765}[name])
     h.data = [d for d in h.data if d['dev'] == 'gps']        # collect only the gps entry
     h.collect_data()
     h.check_alarm()

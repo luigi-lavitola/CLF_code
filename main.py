@@ -60,7 +60,9 @@ class App(cmd2.Cmd):
         def log(level, msg):
             print(f"{level.upper()}: {msg}")
             logger.log(getattr(logging, level.upper()), msg, extra={'classname': 'App'})
-        return TimeSync.ensure(self.dc.fpga, log)
+        # local PPS first: a force align also increments the seconds counter
+        pps_ok = TimeSync.ensure_pps(self.dc.fpga, self.dc.hw.tick_ns, log)
+        return TimeSync.ensure(self.dc.fpga, log) and pps_ok
 
     ## fpga_time ##
 
@@ -70,11 +72,12 @@ class App(cmd2.Cmd):
     @cmd2.with_category('System Control')
     @cmd2.with_argparser(fpga_time_parser)
     def do_fpga_time(self, args):
-        """check the FPGA seconds counter (timestamps) or align it to the host clock"""
+        """check / align the FPGA time: local PPS to the GPS PPS, seconds counter to the host clock"""
         if args.action == 'check':
             off = TimeSync.offset(self.dc.fpga)
             fpga_unix = int(time.time()) + off
             print(f"FPGA {fpga_unix} (GPS {unix_to_gps(fpga_unix)}), offset from host {off} s")
+            print(f"local PPS - GPS PPS: {-TimeSync.pps_error_ns(self.dc.fpga, self.dc.hw.tick_ns):+.0f} ns")
             return
         if self.mode == 'auto':
             print("E: set mode to manual")

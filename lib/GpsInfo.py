@@ -23,7 +23,7 @@ STALE_S = 10
 # receiver, so it is a coarser measurement than PPS.
 CLOCK_OFFSET_WARN_S = {"PPS": 0.1, "TPV": 0.5}
 
-FIELDS = ("gps_sats_used", "gps_sats_visible", "gps_snr_mean", "gps_hdop", "gps_tdop",
+FIELDS = ("gps_fix_age", "gps_sats_used", "gps_sats_visible", "gps_snr_mean", "gps_hdop", "gps_tdop",
           "gps_lat", "gps_lon", "gps_alt", "gps_clock_offset", "gps_leapseconds")
 
 NAN = float("nan")
@@ -83,10 +83,18 @@ class GpsStatus:
                 return t - fix_time, "TPV"
         return NAN, None
 
+    def fix_age(self, now):
+        """Seconds since the time of the last gpsd fix (NaN if no fix time ever received).
+        Uses the last TPV even if old: its age is exactly what is measured."""
+        _, tpv = self.reports.get("TPV", (None, None))
+        fix_time = _iso_to_unix(_get(tpv, "time")) if tpv is not None else None
+        return NAN if fix_time is None else round(now - fix_time, 1)
+
     def values(self, now):
         sky = self._last("SKY", now)
         tpv = self._last("TPV", now)
         v = dict.fromkeys(FIELDS, NAN)
+        v["gps_fix_age"] = self.fix_age(now)
         if sky is not None:
             sats = _get(sky, "satellites", []) or []
             used = [s for s in sats if _get(s, "used")]

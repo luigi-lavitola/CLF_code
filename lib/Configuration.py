@@ -8,6 +8,7 @@ class Configuration:
         self.outlets = {}
         self.radiometers = {}
         self.parameters = {}
+        self.dio = {}               # name -> [register, bit, inverted], overrides of FPGADevice.iomap
 
     def read(self):
         with open('conf/parameters.yml', 'r') as f:
@@ -41,6 +42,15 @@ class Configuration:
             for doc in docs:
                 for k,v in doc.items():
                     self.radiometers[k] = v
+
+        # optional: FPGA digital I/O wired differently on this site
+        try:
+            with open(f'conf/{identity}/dio.yml', 'r') as f:
+                for doc in yaml.safe_load_all(f):
+                    for k, v in (doc or {}).items():
+                        self.dio[k] = v
+        except FileNotFoundError:
+            pass
 
     def get_port_params(self, port):
         return self.ports.get(port, None)

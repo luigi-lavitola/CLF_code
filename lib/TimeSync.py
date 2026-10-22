@@ -54,6 +54,43 @@ def align(fpga, now=None, sleep=None):
     fpga.write_register('arm_unixtime', int(now()))
 
 
+PPS_LIMIT_NS = 100          # same limit as the gps_ns_error alarm in sensors.yml
+PPS_SETTLE_S = 2.5          # force align acts at the next GPS PPS; the error is measured at the one after
+
+
+def pps_error_ns(fpga, tick_ns):
+    """GPS PPS - local PPS measured by the FPGA (pps_distance, zero 32767 as in the logs)."""
+    return (fpga.read_register('pps_distance') - 32767) * tick_ns
+
+
+def ensure_pps(fpga, tick_ns, log, limit_ns=PPS_LIMIT_NS, sleep=None):
+    """Align the local PPS (FPGA sub-second counter) to the GPS PPS when it is off.
+
+    On hw v1 the VCXO PID keeps it aligned; on hw v2 (LEA-M8F clock, no PID on the clock)
+    the local PPS has an arbitrary phase after power-up and only a force align fixes it:
+    without it the shots would be at an arbitrary time with respect to the GPS second.
+    Do it BEFORE ensure(): the forced local PPS also increments the seconds counter.
+    Never raises: returns True when the error is within limit_ns."""
+    _, sleep = _clock(None, sleep)
+    try:
+        err = pps_error_ns(fpga, tick_ns)
+        if abs(err) <= limit_ns:
+            log('info', f"local PPS aligned with GPS ({err:+.0f} ns)")
+            return True
+        log('warning', f"local PPS off by {err:+.0f} ns from GPS: force align")
+        fpga.write_dio('force_align', True)         # firmware clears the bit by itself
+        sleep(PPS_SETTLE_S)
+        err = pps_error_ns(fpga, tick_ns)
+        if abs(err) <= limit_ns:
+            log('info', f"local PPS aligned with GPS after force align ({err:+.0f} ns)")
+            return True
+        log('error', f"local PPS still off by {err:+.0f} ns after force align (GPS PPS missing?)")
+        return False
+    except Exception as e:
+        log('error', f"local PPS check failed: {e!r}")
+        return False
+
+
 def ensure(fpga, log, attempts=3, now=None, sleep=None):
     """Check the FPGA counter and align it if needed. True when verified aligned.
 

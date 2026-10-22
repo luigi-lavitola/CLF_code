@@ -76,6 +76,13 @@ class FPGADevice:
     def close(self):
         self.serial.close()
 
+    def apply_dio_map(self, overrides):
+        """Site wiring of the DB25 digital I/O: {name: [register, bit, inverted]}."""
+        for name, (regaddr, bit, inverted) in overrides.items():
+            if name not in self.iomap:
+                raise NameError(f"dio.yml: unknown FPGA I/O '{name}'")
+            self.iomap[name] = FPGAIO(int(regaddr), int(bit), inverted=bool(inverted))
+
     # one register access takes well under a second: a lock held longer means the holder is stuck
     LOCK_TIMEOUT_S = 10
     READ_RETRIES = 3
