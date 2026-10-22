@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from lib.HouseKeeping import HouseKeeping
+from lib.GpsInfo import GpsStatus
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -25,6 +26,8 @@ def make_hk(identity, gps_mode=3):
     h.alarm_data = []
     h.gpsd = types.SimpleNamespace(fix=types.SimpleNamespace(mode=gps_mode))
     h.gps_fix_str = ["unknown", "no fix", "2D", "3D"]
+    h.gps_status = GpsStatus()
+    h.gps_warned = {}
     return h
 
 

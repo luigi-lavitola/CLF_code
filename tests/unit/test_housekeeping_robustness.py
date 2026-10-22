@@ -7,6 +7,7 @@ import pytest
 
 import lib.HouseKeeping as hk_module
 from lib.HouseKeeping import HouseKeeping
+from lib.GpsInfo import GpsStatus
 
 RAIN = {'dev': 'dio', 'name': 'rain', 'value': True, 'error': False, 'alarm': False}
 DRY = {'dev': 'dio', 'name': 'rain', 'value': False, 'error': False, 'alarm': False}
@@ -34,6 +35,8 @@ def hk(monkeypatch):
     h.alarm_data = []
     h.running = False
     h.gpsd = types.SimpleNamespace(fix=types.SimpleNamespace(mode=3))
+    h.gps_status = GpsStatus()
+    h.gps_warned = {}
     HouseKeeping._HouseKeeping__subscribers.clear()
     yield h
     HouseKeeping._HouseKeeping__subscribers.clear()

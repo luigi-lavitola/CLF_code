@@ -15,6 +15,7 @@ from lib.TLA2518 import TLA2518
 from lib.LTC2983 import LTC2983
 from lib.LTC2983_const import *
 from lib.FPGADevice import FPGADevice
+from lib.GpsInfo import GpsStatus, FIELDS as GPS_FIELDS
 
 class HouseKeeping:
 
@@ -36,8 +37,11 @@ class HouseKeeping:
         self.tla = TLA2518()
         self.adc = self.tla.get_ftdi_backend(self.slave2)
 
-        self.gpsd = gps.gps(mode=gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
+        # WATCH_PPS: PPS reports (host clock at the PPS edge) when gpsd has a PPS source
+        self.gpsd = gps.gps(mode=gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE | getattr(gps, 'WATCH_PPS', 0))
         self.gps_thr = None
+        self.gps_status = GpsStatus()
+        self.gps_warned = {}            # warning key -> time of the last log
 
         self.params = params
         self.identity = str.lower(self.params['identity'])
@@ -91,7 +95,8 @@ class HouseKeeping:
         failing = False
         while self.running:
             try:
-                self.gpsd.next()
+                report = self.gpsd.next()
+                self.gps_status.update(report, time.time())
                 if failing:
                     self.log.info("gpsd readout recovered")
                     failing = False
@@ -105,7 +110,19 @@ class HouseKeeping:
                         return
                     time.sleep(1)
 
+    GPS_WARNING_PERIOD_S = 3600
+
+    def check_gps_warnings(self):
+        """Log (at most once per GPS_WARNING_PERIOD_S each) conditions that make the shot
+        timestamps unreliable: host clock off from GPS, leap second table out of date."""
+        now = time.time()
+        for key, msg in self.gps_status.warnings(now).items():
+            if now - self.gps_warned.get(key, 0) >= self.GPS_WARNING_PERIOD_S:
+                self.log.warning(msg)
+                self.gps_warned[key] = now
+
     def collect_data(self):
+        gps_values = None
         for d in self.data:
             if d['dev'] == 'tla':
                 if d['name'] == 'rain':
@@ -128,6 +145,10 @@ class HouseKeeping:
                     pps = self.fpga.read_dio('pps_present')
                     d['value'] = mode > 1 and pps
                     d['info'] = f"{self.gps_fix_str[mode]}, PPS {'present' if pps else 'missing'}"
+                elif d['name'] in GPS_FIELDS:
+                    if gps_values is None:
+                        gps_values = self.gps_status.values(time.time())
+                    d['value'] = round(gps_values[d['name']], 7)
 
     def log_data(self):
         s = ''
@@ -186,6 +207,7 @@ class HouseKeeping:
                 self.collect_data()
                 self.log_data()
                 self.check_alarm()
+                self.check_gps_warnings()
                 if failures >= self.MAX_FAILURES:
                     self.log.info("housekeeping readout recovered")
                 failures = 0

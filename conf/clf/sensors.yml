@@ -94,3 +94,51 @@
   alarm: False
   info: ""
 
+# receiver / time reference information from gpsd (lib/GpsInfo.py), no alarm.
+# Kept at the end of the file: hk.csv has no header, columns follow this order.
+
+- dev: gps
+  name: gps_sats_used
+  value: .nan
+
+- dev: gps
+  name: gps_sats_visible
+  value: .nan
+
+- dev: gps
+  name: gps_snr_mean
+  value: .nan
+  unit: dBHz
+
+- dev: gps
+  name: gps_hdop
+  value: .nan
+
+- dev: gps
+  name: gps_tdop
+  value: .nan
+
+- dev: gps
+  name: gps_lat
+  value: .nan
+  unit: deg
+
+- dev: gps
+  name: gps_lon
+  value: .nan
+  unit: deg
+
+- dev: gps
+  name: gps_alt
+  value: .nan
+  unit: m
+
+- dev: gps
+  name: gps_clock_offset
+  value: .nan
+  unit: s
+
+- dev: gps
+  name: gps_leapseconds
+  value: .nan
+  unit: s
