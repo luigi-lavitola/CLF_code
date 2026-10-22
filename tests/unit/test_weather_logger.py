@@ -36,3 +36,47 @@ def test_midnight_hhmm():
 def test_bad_records_raise(raw):
     with pytest.raises(ValueError):
         wl.parse_fields(raw)
+
+
+# --- service loop: MOXA off with the inverter -------------------------------------------
+
+@pytest.fixture
+def station(monkeypatch, tmp_path):
+    """Replays answers: str = raw record, '' = no answer, Exception = port not available."""
+    answers = []
+    messages = []
+    rows = []
+
+    def read_station(**kw):
+        a = answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+    monkeypatch.setattr(wl, "read_station", read_station)
+    monkeypatch.setattr(wl, "sleep_to_next", lambda s: None)
+    monkeypatch.setattr(wl, "save_csv", lambda record, when: rows.append(record))
+    monkeypatch.setattr(wl.log, "info", lambda msg, *a: messages.append(("info", msg % a if a else msg)))
+    monkeypatch.setattr(wl.log, "error", lambda msg, *a: messages.append(("error", msg % a if a else msg)))
+    monkeypatch.setattr(wl.log, "warning", lambda msg, *a: messages.append(("warning", msg % a if a else msg)))
+
+    def run(seq):
+        answers[:] = seq
+        wl.loop({"port": "x"}, 300, cycles=len(seq))
+        return messages, rows
+    return run
+
+
+def test_moxa_off_logged_once_not_every_reading(station):
+    off = wl.serial.SerialException("port not available")
+    messages, rows = station([WARM, "", off, "", "", WARM])
+    not_answering = [m for m in messages if "not answering" in m[1]]
+    again = [m for m in messages if "answering again" in m[1]]
+    assert len(not_answering) == 1 and len(again) == 1
+    assert not any(level == "error" for level, _ in messages)
+    assert len(rows) == 2
+
+
+def test_garbage_answer_is_an_error_each_time(station):
+    messages, rows = station(["01+0105. garbage", "01+0105. garbage"])
+    assert [level for level, _ in messages if level == "error"] == ["error", "error"]
+    assert rows == []

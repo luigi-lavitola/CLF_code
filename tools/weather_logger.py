@@ -7,7 +7,9 @@ weather station and appends it to logs/weather_log.csv (same columns as before) 
 logs/weather.log.
 
 Serial port: 'weather_Station' in conf/<identity>/ports.yml (identity from
-conf/parameters.yml), or --port / --baudrate.
+conf/parameters.yml), or --port / --baudrate. The port is on the MOXA serial server, which
+is powered by the inverter: the station answers only while the inverter is on; otherwise
+readings are skipped (logged once when it stops answering and once when it is back).
 
 Station dialogue (as in the original spike): "G" then "1B", then "1D" answers with an echo
 line and two data lines. Each field is "<index><sign><value>", e.g. "05+0012.3" or
@@ -128,19 +130,30 @@ def save_csv(record, when):
         csv.writer(f).writerow([when.strftime("%Y-%m-%dT%H:%M:%S")] + [record[k] for k in CSV_HEADER[1:]])
 
 
+OK, SILENT, BAD = "ok", "silent", "bad"
+
+
 def read_and_log(port_params):
+    """One reading. SILENT: no answer or port not available (normal while the MOXA serial
+    server is off, i.e. with the inverter off); BAD: the station answered something
+    unreadable (logged with the raw answer)."""
     when = datetime.now(timezone.utc)
-    raw = read_station(**port_params)
+    try:
+        raw = read_station(**port_params)
+    except (serial.SerialException, OSError):
+        return SILENT
+    if not raw:
+        return SILENT
     try:
         record = to_record(parse_fields(raw))
     except ValueError as e:
         log.error("unreadable record (%s): %r", e, raw)
-        return False
+        return BAD
     log.info("T=%.2f C RH=%.2f %% P=%.1f hPa wind cur=%.2f avg=%.2f max=%.2f",
              record["temperature"], record["humidity"], record["pressure"],
              record["curwspeed"], record["avgwspeed"], record["maxwspeed"])
     save_csv(record, when)
-    return True
+    return OK
 
 
 def sleep_to_next(interval_s):
@@ -168,17 +181,31 @@ def main(argv=None):
 
     prepare_csv()
     log.info("weather logging started on %s, every %d s", port_params["port"], args.interval)
-    failures = 0
-    while True:
-        sleep_to_next(args.interval)
+    loop(port_params, args.interval)
+
+
+def loop(port_params, interval_s, cycles=None):
+    """Read forever (or `cycles` times). A silent station is logged only when it stops
+    and when it starts answering again, not at every reading."""
+    answering = None                                 # unknown at start
+    n = 0
+    while cycles is None or n < cycles:
+        n += 1
+        sleep_to_next(interval_s)
         try:
-            ok = read_and_log(port_params)
-        except Exception as e:                       # serial errors, port missing, ...
+            state = read_and_log(port_params)
+        except Exception as e:                       # unexpected: keep the service alive
             log.error("weather station read failed: %r", e)
-            ok = False
-        failures = 0 if ok else failures + 1
-        if failures in (3, 12, 288):                 # 15 min, 1 h, 1 day without data
-            log.warning("no weather data for %d readings", failures)
+            state = BAD
+        if state == SILENT and answering is not False:
+            log.info("weather station not answering (MOXA serial server off with the inverter?): "
+                     "readings skipped until it answers again")
+            answering = False
+        elif state != SILENT and answering is False:
+            log.info("weather station answering again")
+            answering = True
+        elif state != SILENT:
+            answering = True
 
 
 if __name__ == "__main__":

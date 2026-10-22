@@ -145,8 +145,12 @@ systemctl status clf-weather
 tail -f logs/weather.log
 ```
 
-Una lettura che non si riesce a interpretare finisce in `weather.log` come ERROR con la risposta grezza;
-dopo 3, 12 e 288 letture fallite di fila (15 min, 1 h, 1 giorno) c'è anche un WARNING.
+La stazione è collegata al MOXA, che è alimentato dall'inverter: **risponde solo mentre l'inverter è
+acceso** (durante i run). Quando non risponde le letture vengono saltate, con un solo messaggio INFO
+quando smette e uno quando torna a rispondere. Una risposta che non si riesce a interpretare finisce invece
+in `weather.log` come ERROR con la risposta grezza.
+Per avere dati meteo 24 ore su 24 serve alimentare il MOXA indipendentemente dall'inverter, oppure
+collegare la stazione direttamente al PC (adattatore USB-seriale, porta da aggiornare in `ports.yml`).
 
 ## 5. Log
 
