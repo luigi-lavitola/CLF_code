@@ -1,0 +1,12 @@
+# /etc/default/gpsd for the CLF control PC (copy over the existing file)
+
+# GPS serial (udev symlink) followed by the kernel PPS device from the GPIO:
+# a PPS device listed after a GPS is used by gpsd as its time reference.
+DEVICES="/dev/gps0 /dev/pps0"
+
+# -s 115200: the receiver is configured at 115200 baud (u-blox factory default is 9600)
+# -n: read the GPS even without clients (needed by chrony)
+# -G: accept clients from the network, not only localhost (drop it if not needed)
+GPSD_OPTIONS="-s 115200 -n -G"
+
+USBAUTO="false"

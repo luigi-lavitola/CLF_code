@@ -1,0 +1,31 @@
+# CLF / XLF control software: main.py inside a detached screen session.
+# Install: see setup/README.md
+#
+#   attach:  sudo screen -r clf        (detach: Ctrl-A then D)
+#   status:  systemctl status clf
+#   stop:    sudo systemctl stop clf   ('quit' in the CLI exits, then systemd restarts it)
+
+[Unit]
+Description=CLF control software (main.py in screen session 'clf')
+After=network.target gpsd.service chrony.service
+Wants=gpsd.service chrony.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/CLF_code
+
+# The FPGA seconds counter is aligned to the host clock at start: wait (up to ~5 min)
+# for chrony to be synchronized within 10 ms. '-': start anyway if it does not happen,
+# the housekeeping then reports the clock offset in hk.log.
+ExecStartPre=-/usr/bin/chronyc waitsync 30 0.01
+TimeoutStartSec=600
+
+# -D -m: screen stays in the foreground, so systemd follows main.py and restarts it.
+# -L -Logfile: what main.py prints on the terminal is saved too.
+ExecStart=/usr/bin/screen -DmS clf -L -Logfile /opt/CLF_code/logs/screen.log /usr/bin/python3 main.py
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

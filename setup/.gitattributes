@@ -1,0 +1,2 @@
+# configuration files for the Linux control PC: always LF (systemd/udev do not accept CRLF)
+* text eol=lf
