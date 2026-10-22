@@ -116,6 +116,19 @@ class RunBase:
         self.log(logging.ERROR, f"{what} timeout ({timeout_s}s)", stacklevel=2)
         return False
 
+    def safe_abort(self):
+        """abort() (covers closed, laser standby, outlets and inverter off), never raising.
+
+        Skipped when the inverter is off: the RPC is then unpowered and its (blocking by
+        design) waits would never end, while everything is already without power."""
+        try:
+            if not self.dc.fpga.read_dio('inverter'):
+                self.log(logging.INFO, "inverter off: nothing to shut down")
+                return
+            self.abort()
+        except Exception as e:
+            self.log(logging.ERROR, f"exception occurred during abort: {e}")
+
     def execute(self, do_prepare=True, do_finish=True):
         ret = None
         if do_prepare:
@@ -123,11 +136,19 @@ class RunBase:
                 ret = self.prepare()
             except Exception as e:
                 self.log(logging.ERROR, f"exception occurred during prepare: {e}")
+            if ret != 0:
+                # a failed prepare can leave a cover open or the laser in fire mode:
+                # always go to a safe state, also for runs that keep instruments on
+                self.log(logging.ERROR, "prepare failed: shutting down")
+                self.safe_abort()
+                return
         if ret == 0:        # check if run preparation is completed
             try:
                 self.run()
             except Exception as e:
-                self.log(logging.ERROR, f"exception occurred during run: {e}") 
+                self.log(logging.ERROR, f"exception occurred during run: {e}: shutting down")
+                self.safe_abort()
+                return
         if do_finish:
             try:
                 self.finish()
