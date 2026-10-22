@@ -76,26 +76,38 @@ class FPGADevice:
     def close(self):
         self.serial.close()
 
+    # one register access takes well under a second: a lock held longer means the holder is stuck
+    LOCK_TIMEOUT_S = 10
+    READ_RETRIES = 3
+
     def critical_section(func):
         def wrapper(self, *args, **kwargs):
-            self.mutex.acquire()
-            ret = func(self, *args, **kwargs)
-            self.mutex.release()
-            return ret
+            mutex = self.mutex          # local: RunManager may replace a lock left held by a dead process
+            if not mutex.acquire(timeout=self.LOCK_TIMEOUT_S):
+                raise TimeoutError(f"FPGA serial lock not released within {self.LOCK_TIMEOUT_S}s")
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                mutex.release()         # also on exceptions
         return wrapper
 
     @critical_section
     def read_address(self, addr):
-        value = 0
-        while True:
+        """Register value; IOError after READ_RETRIES missing/malformed answers.
+
+        (It used to return 0 silently, and write_dio() then wrote that 0 back, clearing
+        the other bits of the register.)"""
+        for _ in range(self.READ_RETRIES):
+            self.serial.reset_input_buffer()            # drop a late answer to an earlier request
             self.serial.write(f"{str(hex(addr))[2:]}\n".encode())
+            answer = self.serial.read_until('\r'.encode())
+            if not answer.endswith(b'\r'):
+                continue                                # timeout: never parse a partial answer
             try:
-                value = int(self.serial.read_until('\r'.encode()).decode()[:-1], 16)
-            except:
+                return int(answer[:-1].decode(errors='replace').strip(), 16)
+            except ValueError:
                 continue
-            finally:
-                break
-        return value
+        raise IOError(f"FPGA: no valid answer reading address {hex(addr)} ({self.READ_RETRIES} attempts)")
 
     @critical_section
     def write_address(self, addr, value):

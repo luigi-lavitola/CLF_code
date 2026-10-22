@@ -149,9 +149,30 @@ class RunManager:
         self.job.start()
         return True
 
+    def _terminate_job(self):
+        """Terminate the run process without leaving the FPGA in the middle of a transaction.
+
+        The FPGA serial lock is shared with the child: the parent takes it first, so the
+        child completes its current register access and then waits; only then it is
+        terminated. If the lock is not released (child stuck while holding it), the child
+        is terminated anyway and the lock replaced, otherwise every later FPGA access of
+        this process (housekeeping, scheduler, CLI) would wait for a dead owner."""
+        fpga = getattr(self.dc, 'fpga', None)
+        mutex = getattr(fpga, 'mutex', None)
+        acquired = mutex.acquire(timeout=fpga.LOCK_TIMEOUT_S) if mutex is not None else False
+        try:
+            self.job.terminate()
+            self.job.join(5)
+        finally:
+            if acquired:
+                mutex.release()
+        if mutex is not None and not acquired:
+            fpga.mutex = multiprocessing.Lock()
+            self.log(logging.ERROR, "FPGA lock held by the terminated run process: replaced")
+
     def stop(self):
         if self.job_is_running():
-            self.job.terminate()
+            self._terminate_job()
             self.job = multiprocessing.Process(target=self.run.abort)
             self.job.start()
             return 0
@@ -159,7 +180,7 @@ class RunManager:
 
     def kill(self):
         if self.job_is_running():
-            self.job.terminate()
+            self._terminate_job()
             self.log(logging.WARN, f"{self.runentry.runtype.name} run killed")
             return 0
         return -1
@@ -170,12 +191,15 @@ class RunManager:
             if not self.abort_in_progress:
                 self.log(logging.INFO, f"start alarm handling")
                 self.abort_in_progress = True
-                self.job.terminate()
-                self.log(logging.INFO, f"run aborted")
-                self.log(logging.INFO, f"start devices shutdown")
-                self.run.abort()
-                self.log(logging.INFO, f"finish devices shutdown")
-                self.abort_in_progress = False
+                try:
+                    self._terminate_job()
+                    self.log(logging.INFO, f"run aborted")
+                    self.log(logging.INFO, f"start devices shutdown")
+                    self.run.abort()
+                    self.log(logging.INFO, f"finish devices shutdown")
+                finally:
+                    # an exception in abort() must not block the handling of every later alarm
+                    self.abort_in_progress = False
             else:
                 self.log(logging.INFO, f"alarm handling in progress")
 

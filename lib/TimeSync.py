@@ -58,6 +58,14 @@ def ensure(fpga, log, attempts=3, now=None, sleep=None):
     """Check the FPGA counter and align it if needed. True when verified aligned.
 
     log(level_name, message) is called with 'info' / 'warning' / 'error'."""
+    try:
+        return _ensure(fpga, log, attempts, now, sleep)
+    except Exception as e:          # FPGA not answering: report, never stop the caller
+        log('error', f"FPGA seconds counter check failed: {e!r}")
+        return False
+
+
+def _ensure(fpga, log, attempts, now, sleep):
     off = offset(fpga, now, sleep)
     if off == 0:
         log('info', "FPGA seconds counter aligned with host clock")
