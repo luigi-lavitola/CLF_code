@@ -122,6 +122,32 @@ Note:
 - Per lavorare sugli strumenti a mano passare in `mode manual`: in auto, con l'inverter acceso e nessun
   run vicino, la stazione viene spenta automaticamente.
 
+## 4b. Stazione meteo (solo sul PC collegato alla stazione)
+
+`tools/weather_logger.py` legge la stazione ogni 5 minuti (allineato a :00, :05, ...) e scrive
+`logs/weather_log.csv` (stesse colonne del vecchio `spikes/weather_log.py`, timestamp UTC) e
+`logs/weather.log`. Porta e velocità sono quelle di `weather_Station` in `conf/<identity>/ports.yml`.
+
+Prima prova a mano (una lettura, mostra anche la risposta grezza della stazione):
+```bash
+cd /opt/CLF_code
+python3 tools/weather_logger.py --once
+```
+
+Poi il servizio:
+```bash
+# se il vecchio spikes/weather_log.py gira ancora (screen, cron, ...), fermarlo:
+#   altrimenti due processi leggono la stessa porta
+cp setup/clf-weather.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now clf-weather
+systemctl status clf-weather
+tail -f logs/weather.log
+```
+
+Una lettura che non si riesce a interpretare finisce in `weather.log` come ERROR con la risposta grezza;
+dopo 3, 12 e 288 letture fallite di fila (15 min, 1 h, 1 giorno) c'è anche un WARNING.
+
 ## 5. Log
 
 In `/opt/CLF_code/logs/` (ruotati ogni giorno alle 18:00 UTC):
@@ -132,6 +158,7 @@ In `/opt/CLF_code/logs/` (ruotati ogni giorno alle 18:00 UTC):
 | `device.log` | dialogo con laser, motori, radiometri, RPC |
 | `hk.log`, `hk.csv` | housekeeping ogni 10 s (tensioni, temperature, pioggia, GPS) |
 | `screen.log` | quello che la CLI stampa sul terminale |
+| `weather.log`, `weather_log.csv` | stazione meteo, ogni 5 min (solo dove gira `clf-weather`) |
 
 ## 6. Verifica dopo l'installazione
 

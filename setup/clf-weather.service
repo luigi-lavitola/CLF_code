@@ -1,0 +1,19 @@
+# Weather station logger (only on the PC connected to the weather station).
+# Install: see setup/README.md, section "Stazione meteo"
+#
+#   status:  systemctl status clf-weather
+#   log:     /opt/CLF_code/logs/weather.log, weather_log.csv  (also journalctl -u clf-weather)
+
+[Unit]
+Description=CLF weather station logger
+After=network.target chrony.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/CLF_code
+ExecStart=/usr/bin/python3 tools/weather_logger.py
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
