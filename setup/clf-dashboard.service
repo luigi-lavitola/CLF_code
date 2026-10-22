@@ -1,0 +1,21 @@
+# Shift dashboard: read-only web view of /opt/CLF_code/logs (no hardware access).
+# Install and access: see setup/README.md, section "Dashboard"
+#
+#   status:  systemctl status clf-dashboard
+#   page:    http://<this PC>:8080  (through an ssh tunnel from outside)
+
+[Unit]
+Description=CLF shift dashboard (read-only, port 8080)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/CLF_code
+ExecStart=/usr/bin/python3 dashboard/app.py --logs /opt/CLF_code/logs --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=10
+# lowest priority: the dashboard must never slow down the control software
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

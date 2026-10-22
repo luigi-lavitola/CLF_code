@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ site or "CLF" }} turno</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+         font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 24px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 16px; margin: 28px 0 8px; }
+  .meta { color: var(--ink2); }
+  .ranges { display: flex; gap: 4px; margin-left: auto; }
+  .ranges button { border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+                   padding: 4px 10px; border-radius: 6px; cursor: pointer; font: inherit; }
+  .ranges button[aria-pressed="true"] { font-weight: 700; border-color: var(--ink2); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .tile .label { color: var(--ink2); font-size: 12px; }
+  .tile .value { font-size: 22px; font-weight: 600; }
+  .tile .note { color: var(--muted); font-size: 12px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 12px; }
+  @media (max-width: 600px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px; min-width: 0; }
+  .card h3 { font-size: 13px; font-weight: 600; margin: 4px 8px 0; }
+  .card .sub { color: var(--muted); font-size: 12px; margin: 0 8px; }
+  .plot { width: 100%; height: 280px; }
+  .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { color: var(--ink2); font-weight: 600; position: sticky; top: 0; background: var(--surface); }
+  td.num, th.num { text-align: right; }
+  td.msg { white-space: normal; min-width: 320px; }
+  .lvl-ERROR { color: var(--critical); font-weight: 600; }
+  .lvl-WARNING { color: var(--ink); }
+  .lvl-WARNING::before { content: "▲ "; color: var(--warning); }
+  .lvl-ERROR::before { content: "✖ "; }
+  .events { max-height: 420px; overflow-y: auto; }
+  #detail { display: none; }
+  #detail.open { display: block; }
+  .close { float: right; border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+           border-radius: 6px; cursor: pointer; padding: 2px 8px; font: inherit; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .loading { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>{{ site or "CLF" }} · dashboard di turno</h1>
+    <span class="meta" id="range">—</span>
+    <div class="ranges" role="group" aria-label="Periodo">
+      <button data-days="1">1 g</button><button data-days="3" aria-pressed="true">3 g</button>
+      <button data-days="7">7 g</button><button data-days="30">30 g</button><button data-days="0">tutto</button>
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"><span class="loading">caricamento…</span></div>
+
+  <section id="detail" class="card" style="margin-top:16px">
+    <button class="close" id="detail-close">chiudi</button>
+    <h3 id="detail-title">Run</h3>
+    <p class="sub" id="detail-sub"></p>
+    <div class="grid2">
+      <div><div class="plot" id="d-time"></div></div>
+      <div><div class="plot" id="d-power"></div></div>
+    </div>
+  </section>
+
+  <h2>Notti</h2>
+  <div class="tablewrap"><table id="nights"></table></div>
+
+  <h2>Timestamp dei colpi</h2>
+  <p class="hint">Un punto per run. Clic su un punto per il dettaglio colpo per colpo.</p>
+  <div class="grid2">
+    <div class="card"><h3>Colpi con timestamp valido</h3><p class="sub">% del run: pacchetto ricevuto, del colpo giusto</p><div class="plot" id="p-good"></div></div>
+    <div class="card"><h3>Istante del colpo, scostamento dal tipico</h3><p class="sub">mediana del run − mediana del tipo di run nel periodo (ns)</p><div class="plot" id="p-tgps"></div></div>
+    <div class="card"><h3>Deriva entro il run</h3><p class="sub">ns per colpo (firmware v1: periodo P+2 → ~20 ns)</p><div class="plot" id="p-drift"></div></div>
+    <div class="card"><h3>Distanza PPS GPS – PPS locale</h3><p class="sub">mediana del run (ns)</p><div class="plot" id="p-pps"></div></div>
+  </div>
+
+  <h2>Laser</h2>
+  <div class="grid2">
+    <div class="card"><h3>Potenza per run</h3><p class="sub">mediana dei colpi validi (radiometro)</p><div class="plot" id="p-power"></div></div>
+    <div class="card"><h3>Potenza lungo il run</h3><p class="sub">% della mediana del proprio run; mediana su tutti i run del periodo</p><div class="plot" id="p-profile"></div></div>
+    <div class="card"><h3>Preparazione del laser</h3><p class="sub">durata per run (s)</p><div class="plot" id="p-prep"></div></div>
+  </div>
+
+  <h2>Housekeeping</h2>
+  <div class="grid2" id="hk"></div>
+
+  <h2>Eventi</h2>
+  <p class="hint" id="refusals"></p>
+  <div class="tablewrap events"><table id="events"></table></div>
+</div>
+
+<script>
+const TYPES = ["FD", "TANK", "CALIB", "RAMAN", "MOCK"];       // fixed order = fixed color
+const theme = new URLSearchParams(location.search).get("theme");      // ?theme=light|dark overrides the OS
+if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const typeColor = t => css("--s" + (TYPES.indexOf(t) + 1));
+const iso = t => new Date(t * 1000).toISOString().slice(0, 19).replace("T", " ");
+const fmt = (v, d = 1) => v === null || v === undefined || Number.isNaN(v) ? "—" : Number(v).toFixed(d);
+let current = null, days = Number(new URLSearchParams(location.search).get("days") ?? 3);
+
+function layout(ytitle, extra = {}) {
+  const ink2 = css("--ink2"), grid = css("--grid"), axis = css("--axis");
+  return Object.assign({
+    margin: {l: 56, r: 12, t: 8, b: 36}, paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: {family: "system-ui, -apple-system, Segoe UI, sans-serif", size: 12, color: ink2},
+    xaxis: {type: "date", gridcolor: grid, linecolor: axis, zeroline: false, title: {text: "UTC"}},
+    yaxis: {title: {text: ytitle}, gridcolor: grid, linecolor: axis, zerolinecolor: axis},
+    legend: {orientation: "h", y: 1.12, x: 0}, hovermode: "closest",
+    hoverlabel: {bgcolor: css("--surface"), bordercolor: css("--axis"), font: {color: css("--ink")}},
+  }, extra);
+}
+const config = {displaylogo: false, responsive: true, modeBarButtonsToRemove: ["select2d", "lasso2d"]};
+
+// a chart with no data says so, instead of showing empty axes
+function draw(el, traces, lay, emptyText = "nessun dato nel periodo") {
+  if (typeof el === "string") el = document.getElementById(el);
+  const empty = !traces.some(t => (t.y || []).some(v => v !== null && v !== undefined));
+  if (empty) {
+    lay = Object.assign({}, lay, {
+      xaxis: {visible: false}, yaxis: {visible: false}, showlegend: false,
+      annotations: [{text: emptyText, showarrow: false, xref: "paper", yref: "paper",
+                     x: 0.5, y: 0.5, font: {color: css("--muted"), size: 13}}]});
+    traces = [];
+  }
+  return Plotly.react(el, traces, lay, config);
+}
+
+function runTraces(runs, yfn, label) {
+  return TYPES.filter(t => runs.some(r => r.type === t && yfn(r) !== null)).map(t => {
+    const rs = runs.filter(r => r.type === t && yfn(r) !== null)
+      .sort((a, b) => (a.status === "ok" ? 0 : 1) - (b.status === "ok" ? 0 : 1));
+    return {
+      type: "scatter", mode: "markers", name: t, x: rs.map(r => iso(r.start)), y: rs.map(yfn),
+      customdata: rs.map(r => r.id),
+      marker: {size: 8, color: typeColor(t), line: {width: 1, color: css("--surface")},
+               symbol: rs.map(r => r.status === "killed" ? "x" : r.status === "error" ? "triangle-up" : "circle")},
+      text: rs.map(r => `${r.type} ${iso(r.start)}<br>${label}: ${fmt(yfn(r), 2)}<br>stato: ${r.status}`),
+      hovertemplate: "%{text}<extra></extra>",
+    };
+  });
+}
+
+function plotRuns(id, runs, yfn, ytitle, label) {
+  const el = document.getElementById(id);
+  draw(el, runTraces(runs, yfn, label), layout(ytitle));
+  el.removeAllListeners && el.removeAllListeners("plotly_click");
+  el.on("plotly_click", ev => openRun(ev.points[0].customdata));
+}
+
+function tiles(d) {
+  const s = d.summary, r = s.runs;
+  const items = [
+    ["Run", `${(r.FD||0)+(r.TANK||0)+(r.CALIB||0)+(r.RAMAN||0)}`, `FD ${r.FD||0} · Tank ${r.TANK||0} · Calib ${r.CALIB||0}`],
+    ["Timestamp validi", s.good_pct === null ? "—" : fmt(s.good_pct) + " %", `${s.shots} colpi`],
+    ["Senza pacchetto", s.missing, "colpi"],
+    ["Pacchetto vecchio", s.stale, "di un colpo precedente"],
+    ["Pacchetto di altro colpo", s.wrong, "colpi"],
+    ["Run uccisi", s.killed, ""],
+    ["Errori", s.errors, "righe ERROR nei log"],
+    ["Rifiuti per allarme", s.refused, "run non partiti"],
+  ];
+  document.getElementById("tiles").innerHTML = items.map(([l, v, n]) =>
+    `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join("");
+}
+
+function nightsTable(nights) {
+  const head = "<tr><th>Notte</th><th class=num>FD</th><th class=num>Tank</th><th class=num>Calib</th>" +
+    "<th class=num>Uccisi</th><th class=num>Con errori</th><th class=num>Rifiutati</th>" +
+    "<th class=num>Pacchetti ricevuti</th><th class=num>Timestamp validi</th></tr>";
+  document.getElementById("nights").innerHTML = head + nights.map(n =>
+    `<tr><td>${n.night}</td><td class=num>${n.FD}</td><td class=num>${n.TANK}</td><td class=num>${n.CALIB}</td>` +
+    `<td class=num>${n.killed}</td><td class=num>${n.error}</td><td class=num>${n.refused}</td>` +
+    `<td class=num>${fmt(n.packet_pct)} %</td><td class=num>${fmt(n.good_pct)} %</td></tr>`).join("");
+}
+
+function hkGroups(hk) {
+  const names = Object.keys(hk), used = new Set(), groups = [];
+  const take = (title, unit, test) => {
+    const g = names.filter(n => !used.has(n) && test(n));
+    g.forEach(n => used.add(n));
+    if (g.length) groups.push({title, unit, names: g});
+  };
+  take("Batterie", "V", n => n.startsWith("battery"));
+  take("Pannelli solari", "V", n => n.startsWith("solar"));
+  take("Temperature", "°C", n => /^t\d+$/.test(n));
+  take("Stati (0/1)", "", n => hk[n].bool);
+  names.filter(n => !used.has(n)).forEach(n => groups.push({title: n, unit: hk[n].unit, names: [n]}));
+  return groups;
+}
+
+function plotHk(hk) {
+  const box = document.getElementById("hk");
+  box.innerHTML = "";
+  hkGroups(hk).forEach((g, gi) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `<h3>${g.title}</h3><p class="sub">${g.unit}</p><div class="plot"></div>`;
+    box.appendChild(card);
+    const traces = g.names.map((n, i) => ({
+      type: "scatter", mode: "lines", name: n, x: hk[n].t.map(iso), y: hk[n].v, connectgaps: false,
+      line: {width: 2, color: css("--s" + (i % 8 + 1)), shape: hk[n].bool ? "hv" : "linear"},
+      hovertemplate: `${n}: %{y}${hk[n].unit ? " " + hk[n].unit : ""}<extra></extra>`,
+    }));
+    const lay = layout(g.unit, {hovermode: "x unified", showlegend: g.names.length > 1});
+    if (!hk[g.names[0]].bool) {
+      const vals = g.names.flatMap(n => hk[n].v).filter(v => v !== null).sort((a, b) => a - b);
+      if (vals.length > 20) {
+        const lo = vals[Math.floor(vals.length * 0.01)], hi = vals[Math.ceil(vals.length * 0.99) - 1];
+        const pad = (hi - lo) * 0.1 || 1;
+        lay.yaxis.range = [lo - pad, hi + pad];
+      }
+    }
+    if (g.title === "Stati (0/1)") lay.yaxis.range = [-0.1, 1.1 + 0.15 * (g.names.length - 1)];
+    if (g.title === "Stati (0/1)") traces.forEach((t, i) => t.y = t.y.map(v => v === null ? null : v + 0.15 * i));
+    draw(card.querySelector(".plot"), traces, lay);
+  });
+}
+
+function eventsTable(events, refusals) {
+  const ref = refusals.length ? "Run rifiutati: " + refusals.map(r =>
+    `${iso(r.t)} ${r.type} (${r.reason === "alarm" ? "allarmi " + r.alarms.join(", ") : "altro job in corso"})`).join(" · ") : "";
+  document.getElementById("refusals").textContent = ref;
+  document.getElementById("events").innerHTML =
+    "<tr><th>UTC</th><th>Livello</th><th>File</th><th>Sorgente</th><th>Messaggio</th></tr>" +
+    events.map(e => `<tr><td>${iso(e.t)}</td><td class="lvl-${e.level}">${e.level}</td><td>${e.file}</td>` +
+      `<td>${e.source}</td><td class=msg>${e.msg.replace(/</g, "&lt;")}</td></tr>`).join("");
+}
+
+function render(d) {
+  current = d;
+  document.getElementById("range").textContent = `dati ${iso(d.t_from)} → ${iso(d.t_to)} UTC`;
+  tiles(d);
+  nightsTable(d.nights);
+  const runs = d.runs;
+  plotRuns("p-good", runs, r => r.good_pct, "%", "validi %");
+  const typical = {};
+  TYPES.forEach(t => {
+    const v = runs.filter(r => r.type === t && r.t_gps_ms !== null).map(r => r.t_gps_ms).sort((a, b) => a - b);
+    typical[t] = v.length ? v[Math.floor(v.length / 2)] : null;
+  });
+  plotRuns("p-tgps", runs, r => r.t_gps_ms === null ? null : (r.t_gps_ms - typical[r.type]) * 1e6, "ns", "scostamento ns");
+  plotRuns("p-drift", runs, r => r.drift_ns_per_shot, "ns / colpo", "deriva");
+  plotRuns("p-pps", runs, r => r.pps_median_ns, "ns", "distanza PPS");
+  plotRuns("p-power", runs, r => r.power_median, "potenza (unità radiometro)", "potenza");
+  const prof = ["FD", "TANK"].filter(t => d.profile[t].i.length).map(t => ({
+    type: "scatter", mode: "lines+markers", name: `${t} (${d.profile[t].n_runs} run)`, x: d.profile[t].i, y: d.profile[t].median,
+    line: {width: 2, color: typeColor(t)}, marker: {size: 8, color: typeColor(t)},
+    hovertemplate: `${t} colpo %{x}: %{y:.1f} %<extra></extra>`}));
+  draw("p-profile", prof, layout("% della mediana del run", {xaxis: {title: {text: "indice del colpo"}, gridcolor: css("--grid")}}));
+  const prepTraces = [["laser_setup_s", "laser setup"], ["fire_auth_s", "attesa autorizzazione fuoco"], ["prepare_s", "prepare totale"]]
+    .map(([k, name], i) => {
+      const rs = runs.filter(r => r[k] !== null);
+      return {type: "scatter", mode: "markers", name, x: rs.map(r => iso(r.start)), y: rs.map(r => r[k]),
+              customdata: rs.map(r => r.id), marker: {size: 8, color: css("--s" + (i + 1))},
+              hovertemplate: `${name}: %{y:.0f} s<extra></extra>`};
+    });
+  const prep = document.getElementById("p-prep");
+  draw(prep, prepTraces, layout("s"));
+  prep.removeAllListeners && prep.removeAllListeners("plotly_click");
+  prep.on("plotly_click", ev => openRun(ev.points[0].customdata));
+  plotHk(d.hk);
+  eventsTable(d.events, d.refusals);
+  requestAnimationFrame(() => document.querySelectorAll(".plot").forEach(p => p.data && Plotly.Plots.resize(p)));
+}
+
+async function load() {
+  document.querySelectorAll(".ranges button").forEach(b => b.setAttribute("aria-pressed", b.dataset.days == days));
+  history.replaceState(null, "", `?days=${days}` + (theme ? `&theme=${theme}` : ""));
+  const res = await fetch(`api/data?days=${days}`);
+  render(await res.json());
+}
+
+async function openRun(id) {
+  const r = await (await fetch(`api/run/${encodeURIComponent(id)}`)).json();
+  const box = document.getElementById("detail");
+  box.classList.add("open");
+  document.getElementById("detail-title").textContent = `${r.type} ${iso(r.start)} UTC — ${r.status}`;
+  document.getElementById("detail-sub").textContent =
+    `${r.n_shots} colpi · pacchetto ${r.n_packet} · vecchi ${r.n_stale} · di altro colpo ${r.n_wrong} · ` +
+    `prepare ${fmt(r.prepare_s, 0)} s` + (r.errors.length ? " · errori: " + r.errors.join(" | ") : "");
+  const cls = s => !s.packet ? "senza pacchetto" : s.stale ? "pacchetto vecchio" : s.wrong ? "pacchetto di altro colpo" : "valido";
+  const order = ["valido", "senza pacchetto", "pacchetto vecchio", "pacchetto di altro colpo"];
+  const colors = {"valido": css("--s1"), "senza pacchetto": css("--critical"), "pacchetto vecchio": css("--serious"), "pacchetto di altro colpo": css("--warning")};
+  const symbols = {"valido": "circle", "senza pacchetto": "x", "pacchetto vecchio": "square", "pacchetto di altro colpo": "diamond"};
+  const valid = r.shots.filter(s => cls(s) === "valido" && s.t_gps_ns !== null);
+  const t0 = valid.length ? valid[0].t_gps_ns : 0;
+  draw("d-time", [{type: "scatter", mode: "lines+markers", name: "valido", x: valid.map(s => s.i), y: valid.map(s => s.t_gps_ns - t0),
+    line: {width: 2, color: css("--s1")}, marker: {size: 8}, hovertemplate: "colpo %{x}: %{y:.0f} ns<extra></extra>"}],
+    layout("ns dal primo colpo valido", {xaxis: {title: {text: "colpo"}, gridcolor: css("--grid")}, showlegend: false}),
+    "nessun colpo con timestamp valido");
+  const ptr = order.filter(c => r.shots.some(s => cls(s) === c)).map(c => {
+    const ss = r.shots.filter(s => cls(s) === c);
+    return {type: "scatter", mode: "markers", name: c, x: ss.map(s => s.i), y: ss.map(s => s.power === null ? 0 : s.power),
+            marker: {size: 9, color: colors[c], symbol: symbols[c]},
+            hovertemplate: `colpo %{x} (${c}): %{y:.3e}<extra></extra>`};
+  });
+  draw("d-power", ptr, layout("potenza", {xaxis: {title: {text: "colpo"}, gridcolor: css("--grid")}}));
+  box.scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+document.querySelectorAll(".ranges button").forEach(b => b.addEventListener("click", () => { days = Number(b.dataset.days); load(); }));
+document.getElementById("detail-close").addEventListener("click", () => document.getElementById("detail").classList.remove("open"));
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => current && render(current));
+const initialRun = new URLSearchParams(location.search).get("run");   // ?run=<id>: link to one run
+load().then(() => { if (initialRun) openRun(initialRun); });
+</script>
+</body>
+</html>

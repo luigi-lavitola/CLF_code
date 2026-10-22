@@ -152,6 +152,52 @@ in `weather.log` come ERROR con la risposta grezza.
 Per avere dati meteo 24 ore su 24 serve alimentare il MOXA indipendentemente dall'inverter, oppure
 collegare la stazione direttamente al PC (adattatore USB-seriale, porta da aggiornare in `ports.yml`).
 
+## 4c. Dashboard di turno
+
+`dashboard/app.py` (Flask) mostra in una pagina web i log degli ultimi giorni: notti e run, qualità dei
+timestamp, temporizzazione, energia del laser, housekeeping, eventi. È **solo lettura**: legge i file in
+`logs/` e non tocca l'hardware (i comandi restano nella CLI).
+
+```bash
+apt install python3-flask
+cp setup/clf-dashboard.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now clf-dashboard
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/     # 200
+```
+
+### Accesso da fuori
+
+La rete è chiusa: si passa dalla macchina INFN pubblica e dal gateway dell'esperimento.
+Una volta per tutte, in `~/.ssh/config` sul proprio PC:
+
+```
+Host infn-jump
+    HostName <macchina INFN pubblica>
+    User <utente>
+
+Host auger-gw
+    HostName 168.96.149.225
+    Port 19422
+    User root
+    ProxyJump infn-jump
+```
+
+Poi, ogni volta (lasciare il comando aperto):
+```bash
+ssh -N -L 8080:<IP del PC CLF nella rete interna>:8080 auger-gw
+```
+e aprire **http://localhost:8080** nel browser.
+(In alternativa `sshuttle -r auger-gw <subnet CLF>` e poi `http://<IP del PC CLF>:8080`.)
+
+Uso della pagina:
+- periodo: 1, 3, 7, 30 giorni o tutto, fino all'ultimo dato presente nei log;
+- clic su un punto di un run: dettaglio colpo per colpo;
+- link diretti: `?days=7`, `?run=<id>` (un run), `?theme=light|dark`.
+
+La pagina carica Plotly da `cdn.plot.ly`: il browser del proprio PC deve avere accesso a internet
+(il PC CLF no).
+
 ## 5. Log
 
 In `/opt/CLF_code/logs/` (ruotati ogni giorno alle 18:00 UTC):
