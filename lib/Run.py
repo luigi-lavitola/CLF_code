@@ -18,6 +18,7 @@ class RunType(Enum):
     TANK = 3,
     CALIB = 4,
     MOCK = 5,
+    SHUTDOWN = 6,
 
 class RunBase:
 
@@ -105,6 +106,21 @@ class RunBase:
         self.log(logging.INFO, f"laser fire authorization after {time.monotonic() - start:.0f}s", stacklevel=2)
         return True
 
+    def close_cover_wait(self, timeout_s=120):
+        """Wait for the RAMAN cover to close after its outlet was switched off. False on timeout."""
+        self.log(logging.INFO, "wait for open limit switch release")
+        if not self.wait_for(lambda: not self.dc.fpga.read_dio('cover_raman_open'),
+                             timeout_s, "limit switch release"):
+            return False
+        self.log(logging.INFO, "done")
+
+        self.log(logging.INFO, "wait cover closing")
+        if not self.wait_for(lambda: self.dc.fpga.read_dio('cover_raman_open') != self.dc.fpga.read_dio('cover_raman_closed'),
+                             timeout_s, "cover close"):
+            return False
+        self.log(logging.INFO, "done")
+        return True
+
     def wait_for(self, condition, timeout_s, what):
         """Poll condition() once per second. True as soon as it holds, False (logged) after timeout_s."""
         for _ in range(timeout_s):
@@ -175,6 +191,56 @@ class RunMock(RunBase):
     def abort(self):
         self.log(logging.INFO, "abort")
         self.finish()
+
+class RunShutdown(RunBase):
+    """Bring the station to the safe state: laser off, covers closed, outlets and inverter
+    off. Idempotent, uses only the outlets configured for the site. Started by the
+    RunManager when no run is coming soon or on an alarm between runs."""
+
+    COVER_CLOSE_S = 10      # vertical cover: same wait as the runs
+
+    def __init__(self, dc : DeviceCollection, params):
+        super().__init__(dc, params)
+
+    def prepare(self):
+        return 0
+
+    def run(self):
+        if not self.dc.fpga.read_dio('inverter'):
+            self.log(logging.INFO, "inverter off: station already off")
+            return
+        self.log(logging.INFO, "shutdown")
+        self.dc.fpga.write_dio('laser_en', 0)
+        try:
+            self.dc.laser.standby()
+        except Exception as e:
+            self.log(logging.ERROR, f"laser standby failed: {e}")
+        self.dc.fpga.write_dio('flipper_raman', False)
+        self.dc.fpga.write_dio('flipper_steer', False)
+
+        outlets = getattr(self.dc, 'outlets', {})
+        if 'Vert_cover' in outlets:
+            self.log(logging.INFO, "close vertical cover")
+            WAIT_UNTIL_TRUE(self.dc.get_outlet('Vert_cover').off)
+            for _ in range(self.COVER_CLOSE_S):
+                time.sleep(1)
+        if 'RAMAN_cover' in outlets:
+            self.log(logging.INFO, "close RAMAN cover")
+            WAIT_UNTIL_TRUE(self.dc.get_outlet('RAMAN_cover').off)
+            self.close_cover_wait()
+        for name in ('RAMAN_inst', 'radiometer', 'laser', 'VXM'):
+            if name in outlets:
+                self.log(logging.INFO, f"turn off {name} outlet")
+                WAIT_UNTIL_TRUE(self.dc.get_outlet(name).off)
+        self.log(logging.INFO, "turn off inverter")
+        self.dc.fpga.write_dio('inverter', False)
+        self.log(logging.INFO, "done")
+
+    def finish(self):
+        pass
+
+    def abort(self):
+        self.run()
 
 class RunRaman(RunBase):
 
@@ -336,21 +402,6 @@ class RunRaman(RunBase):
         self.log(logging.INFO, "turn off RAMAN DAQ...")
         WAIT_UNTIL_TRUE(self.dc.get_outlet("RAMAN_inst").off)
         self.log(logging.INFO, "done")
-
-    def close_cover_wait(self, timeout_s=120):
-        """Wait for the RAMAN cover to close after its outlet was switched off. False on timeout."""
-        self.log(logging.INFO, "wait for open limit switch release")
-        if not self.wait_for(lambda: not self.dc.fpga.read_dio('cover_raman_open'),
-                             timeout_s, "limit switch release"):
-            return False
-        self.log(logging.INFO, "done")
-
-        self.log(logging.INFO, "wait cover closing")
-        if not self.wait_for(lambda: self.dc.fpga.read_dio('cover_raman_open') != self.dc.fpga.read_dio('cover_raman_closed'),
-                             timeout_s, "cover close"):
-            return False
-        self.log(logging.INFO, "done")
-        return True
 
     def finish(self):
 

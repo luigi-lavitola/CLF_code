@@ -89,7 +89,41 @@ class RunManager:
                 if nr in self.runlist:
                     self.runlist.remove(nr)
                 nr = self.next_run()
+            try:
+                self.idle_check(nr)
+            except Exception as e:
+                self.log(logging.ERROR, f"idle shutdown check failed: {e!r}", exc_info=True)
             time.sleep(1)
+
+    # no run within this time and instruments still powered (inverter on): shut down.
+    # Longer than the gaps of a night (FD every 15 min, Raman end+30, calib end+60).
+    IDLE_SHUTDOWN_S = 45 * 60
+    IDLE_CHECK_PERIOD_S = 60
+
+    def idle_check(self, nr):
+        """Auto mode only: shut the station down when nothing is running, the inverter is
+        on and the next run is more than IDLE_SHUTDOWN_S away (or there is none), e.g.
+        when the last run of the night did not start (alarm, manual mode, busy)."""
+        now = time.monotonic()
+        if not self.scheduler_running or self.job_is_running() or now < getattr(self, '_next_idle_check', 0):
+            return
+        self._next_idle_check = now + self.IDLE_CHECK_PERIOD_S
+        if nr is not None and (nr.start_time - datetime.datetime.now()).total_seconds() <= self.IDLE_SHUTDOWN_S:
+            return
+        if self.dc.fpga.read_dio('inverter'):
+            self.start_shutdown(f"no run in the next {self.IDLE_SHUTDOWN_S // 60} min"
+                                + ("" if nr is None else f" (next: {nr.runtype.name} at {nr.start_time})"))
+
+    def start_shutdown(self, reason):
+        """Start a RunShutdown job (not refused on alarms: it is what alarms need)."""
+        if self.job_is_running():
+            return False
+        self.log(logging.WARN, f"station shutdown: {reason}")
+        self.runentry = RunEntry(datetime.datetime.now(), RunType.SHUTDOWN, False, True)
+        self.run = RunShutdown(self.dc, self.params)
+        self.job = multiprocessing.Process(target=self.run.execute)
+        self.job.start()
+        return True
 
     def start_scheduler(self):
         self.scheduler_running = True
@@ -202,6 +236,10 @@ class RunManager:
                     self.abort_in_progress = False
             else:
                 self.log(logging.INFO, f"alarm handling in progress")
+        elif self.dc is not None and self.dc.fpga.read_dio('inverter'):
+            # alarm between runs (auto and manual mode): instruments may still be on
+            # (scheduled runs keep them on until the last run of the night)
+            self.start_shutdown(f"alarm {[a.get('name') for a in msg]}")
 
     def print_status(self):
         if self.job_is_running():
