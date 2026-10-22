@@ -29,10 +29,14 @@ nano conf/parameters.yml                       # identity (clf/xlf), hw_version,
 
 ```bash
 apt install python3 python3-pip screen gpsd gpsd-clients chrony pps-tools python3-gps
-pip3 install -r requirements.txt               # tranne gps: si usa python3-gps di apt
+# tutte le dipendenze tranne gps (si usa python3-gps di apt, stessa versione di gpsd)
+grep -v '^gps' requirements.txt > /tmp/req.txt
+pip3 install -r /tmp/req.txt                   # Debian 12+: aggiungere --break-system-packages
 ```
 
-`python3-gps` di apt ha la stessa versione di gpsd installato; il `gps==3.22` di pip può non coincidere.
+Su Debian 12 e derivate `pip` rifiuta di installare nel Python di sistema senza
+`--break-system-packages` (PEP 668). In alternativa si possono installare i pacchetti `python3-...`
+equivalenti con apt, se le versioni vanno bene.
 
 ## 3. Ora del PC: UTC, GPS + PPS
 
