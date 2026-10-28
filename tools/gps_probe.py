@@ -33,7 +33,7 @@ UBX_NAMES = {
     (0x0A, 0x04): "MON-VER", (0x0A, 0x09): "MON-HW",
     (0x0D, 0x01): "TIM-TP", (0x0D, 0x03): "TIM-TM2", (0x0D, 0x04): "TIM-SVIN",
     (0x0D, 0x10): "TIM-SMEAS", (0x0D, 0x11): "TIM-VCOCAL", (0x0D, 0x15): "TIM-FCHG",
-    (0x0D, 0x16): "TIM-HOC", (0x0D, 0x13): "TIM-SVIN",
+    (0x0D, 0x16): "TIM-HOC", (0x0D, 0x12): "TIM-TOS", (0x0A, 0x2E): "MON-SMGR",
 }
 
 
@@ -194,9 +194,11 @@ class State:
 # --- reader ----------------------------------------------------------------------------------
 
 class Reader:
-    def __init__(self, raw=False):
+    def __init__(self, raw=False, quiet=False):
         self.buf = b""
         self.raw = raw
+        self.quiet = quiet          # do not print UBX messages (read them from self.ubx)
+        self.ubx = {}               # name -> (payload, monotonic time) of the last UBX message
         self.state = State()
         self.count = collections.Counter()
         self.bad = collections.Counter()
@@ -261,6 +263,9 @@ class Reader:
             return True
         self.buf = self.buf[8 + length:]
         self.count[name] += 1
+        self.ubx[name] = (body[4:], time.monotonic())
+        if self.quiet:
+            return True
         text = decode_ubx(cls, mid, body[4:])
         if text is not None or self.raw:
             print(f"  {name} ({length} B): {text if text is not None else body[4:].hex()}")
