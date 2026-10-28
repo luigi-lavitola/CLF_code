@@ -62,19 +62,40 @@ udevadm control --reload && udevadm trigger /dev/pps0
 ls -l /dev/pps0 /dev/gps0                       # pps0: root dialout crw-rw----; gps0: link alla seriale del GPS
 ```
 
-### 3.3 gpsd
+### 3.3 GPS u-blox LEA-M8F (una volta sola)
+
+Di fabbrica il modulo esce a **9600 baud**, solo NMEA. A 9600 la linea è già all'80% e i
+messaggi UBX che gpsd attiva non ci starebbero; `gpsd.default` usa `-s 115200`.
+Si porta la porta a 115200 e si salva in flash, con gpsd fermo:
+
+```bash
+systemctl stop gpsd
+python3 tools/gps_probe.py /dev/gps0 -b 9600 -t 5 --poll   # cosa manda, baud attuale, CFG-TP5
+ubxtool -f /dev/gps0 -s 9600 -S 115200                      # nuovo baud della UART1
+ubxtool -f /dev/gps0 -s 115200 -p SAVE                      # salva in flash
+python3 tools/gps_probe.py /dev/gps0 -b 115200 -t 5        # deve leggere i messaggi a 115200
+```
+
+Il PPS per l'FPGA è **TIMEPULSE2** (1 s, impulso 100 ms, fronte di salita, nessun impulso
+finché il modulo non è agganciato). TIMEPULSE1 non è usato come timepulse.
+
+### 3.4 gpsd
 
 ```bash
 cp setup/gpsd.default /etc/default/gpsd         # DEVICES="/dev/gps0 /dev/pps0"
 systemctl restart gpsd
 journalctl -u gpsd -n 30 --no-pager             # nessun errore su /dev/gps0 o /dev/pps0
 gpspipe -w | grep -m3 '"class":"PPS"'           # una riga al secondo: gpsd usa il PPS
+gpspipe -w | grep -m3 '"class":"TPV"'           # deve contenere "leapseconds":18
 ```
 
 Se compaiono TPV/SKY ma non PPS, gpsd non ha aperto `/dev/pps0` (permessi o nome del device).
-`-s 115200` in `gpsd.default` presuppone il ricevitore configurato a 115200 baud.
+Se in TPV manca `leapseconds`, gpsd legge solo NMEA (avviato con `-b`, o baud sbagliato):
+senza UBX mancano `gps_leapseconds` e `gps_tdop` in `hk.log` e il controllo della tabella dei
+leap second non scatta. Con gpsd acceso il modulo si interroga attraverso gpsd:
+`ubxtool -p MON-VER`, `ubxtool -p CFG-TP5`, `ubxtool -p MON-HW` (lo stato dell'antenna).
 
-### 3.4 chrony
+### 3.5 chrony
 
 ```bash
 cp setup/chrony-clf.conf /etc/chrony/conf.d/clf.conf
