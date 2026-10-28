@@ -62,7 +62,8 @@ PROFILES = {
     1: HardwareProfile(version=1, clk_hz=100_000_000,
                        trigger_latency_ticks=8, gps_to_local_ticks=3, period_extra_ticks=2),
     # LEA-M8F 30.72 MHz x4; fixed Laser_controller (period P, FIRE at D).
-    # After force align the local PPS is ~5 ticks after GPS.
+    # After the (auto or forced) align the local PPS is 5 ticks after the first clock edge
+    # that samples the GPS PPS (firmware tb_time_tag_align).
     2: HardwareProfile(version=2, clk_hz=122_880_000,
                        trigger_latency_ticks=5, gps_to_local_ticks=5, period_extra_ticks=0),
 }
