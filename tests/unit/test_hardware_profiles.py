@@ -1,5 +1,7 @@
 """Hardware profiles: conversions, parameters.yml handling and the FPGA registers written by the runs."""
 
+import datetime
+
 import pytest
 
 import lib.Run as run_module
@@ -162,3 +164,12 @@ def test_packet_uses_profile_tick(hw):
     assert p.seconds == 1_735_689_600 and p.shot == 1
     assert p.counter == pytest.approx(24_999_450 * hw.tick_ns)
     assert p.pps_delta == pytest.approx(-2 * hw.tick_ns)
+
+
+def test_build_time_decoding():
+    from lib.Hardware import decode_build_time
+    # 2026-10-29 12:34:56 packed as USR_ACCESS TIMESTAMP
+    v = (29 << 27) | (10 << 23) | (26 << 17) | (12 << 12) | (34 << 6) | 56
+    assert decode_build_time(v) == datetime.datetime(2026, 10, 29, 12, 34, 56)
+    assert decode_build_time(0) is None                  # firmware without the register
+    assert decode_build_time(0xFFFFFFFF) is None         # impossible date

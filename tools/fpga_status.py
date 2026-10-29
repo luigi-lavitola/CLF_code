@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib.FPGADevice import FPGADevice          # noqa: E402
 from lib.GpsTime import unix_to_gps            # noqa: E402
-from lib.Hardware import PROFILES              # noqa: E402
+from lib.Hardware import PROFILES, decode_build_time   # noqa: E402
 from lib import TimeSync                       # noqa: E402
 
 MUX = {0x0: "PPS_out (local PPS)", 0x1: "10 MHz", 0x2: "QSwitch_IN (default)", 0x3: "QSwitch_Out",
@@ -47,10 +47,17 @@ def dump(f, hw):
     print(f"profile hw v{hw.version}: {hw.clk_hz / 1e6:g} MHz, tick {tick:.3f} ns\n")
 
     print("== firmware / clocks")
-    print(f"fw_version 0xFF       : {r('fw_version'):#06x}  (0 = register not in this firmware)")
+    print(f"0xFF fw_version       : {r('fw_version')}  (hardware version; 0 = register not in this firmware)")
+    raw = r("fw_build")
+    build = decode_build_time(raw)
+    print(f"0xFC fw_build         : {raw:#010x}  "
+          + (f"bitstream built {build:%Y-%m-%d %H:%M:%S}" if build else "(not in this firmware)"))
     v8 = a(0x08)
     print(f"0x08 locks            : {v8:#06x}  "
-          + bits(v8, [(0, "PLL12M"), (2, "jitter_cleaner"), (3, "VCXOLock"), (1, "Lock_10M")]))
+          + bits(v8, [(0, "PLL12M"), (4, "PLL30M72"), (2, "jitter_cleaner"), (3, "VCXOLock"), (1, "Lock_10M")]))
+    v26 = a(0x26)
+    print(f"0x26 GPS control      : {v26:#06x}  gps_run={v26 & 1} (0 = GPS_RESET low, module in reset; "
+          "also 0 on firmware without the register)")
 
     print("\n== PPS / time")
     v7 = a(0x07)

@@ -13,6 +13,7 @@ Latencies come from the firmware (see README_timing.md of the firmware):
 with D = pps_delay, E = pulse_energy, P = pulse_period registers.
 """
 
+import datetime
 import logging
 from dataclasses import dataclass
 
@@ -103,6 +104,7 @@ def trigger_delay_ticks(params, run, energy_ticks):
 
 
 FW_VERSION_REGISTER = 'fw_version'
+FW_BUILD_REGISTER = 'fw_build'
 
 
 def check_firmware(fpga, hw):
@@ -116,3 +118,22 @@ def check_firmware(fpga, hw):
     if fw != hw.version:
         raise RuntimeError(f"FPGA firmware is v{fw} but hw_version is {hw.version} in parameters.yml")
     return fw
+
+
+def decode_build_time(value):
+    """USR_ACCESS TIMESTAMP word -> datetime of the bitstream build (local time of the build PC).
+
+    Bits: day[31:27] month[26:23] year-2000[22:17] hour[16:12] minute[11:6] second[5:0].
+    None for 0 (firmware without the register) or an impossible date."""
+    if not value:
+        return None
+    try:
+        return datetime.datetime(2000 + (value >> 17 & 0x3F), value >> 23 & 0xF, value >> 27 & 0x1F,
+                                 value >> 12 & 0x1F, value >> 6 & 0x3F, value & 0x3F)
+    except ValueError:
+        return None
+
+
+def firmware_build(fpga):
+    """Build time of the bitstream running on the FPGA, None if unknown."""
+    return decode_build_time(fpga.read_register(FW_BUILD_REGISTER))

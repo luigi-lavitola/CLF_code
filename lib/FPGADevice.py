@@ -50,6 +50,7 @@ class FPGADevice:
         self.regmap["mux_bnc_4"] = FPGARegister(0x21)
         self.regmap["shots_num"] = FPGARegister(0x22, 2)
         self.regmap["shots_cnt"] = FPGARegister(0x24, 2)
+        self.regmap["fw_build"] = FPGARegister(0xFC, 2)     # bitstream build time (USR_ACCESS), 0 if absent
         self.regmap["fw_version"] = FPGARegister(0xFF)      # 0 on firmware without the register
 
         self.iomap = {}
@@ -72,6 +73,8 @@ class FPGADevice:
         self.iomap["jc_lock"] = FPGAIO(0x8, 2)
         self.iomap["vcxo_lock"] = FPGAIO(0x8, 3)
         self.iomap["force_align"] = FPGAIO(0x9, 4)
+        self.iomap["pll30_lock"] = FPGAIO(0x8, 4)     # hw v2: clk_wiz 30.72 -> 122.88 MHz locked
+        self.iomap["gps_run"] = FPGAIO(0x26, 0)       # hw v2: GPS_RESET pin (active low), 0 = GPS in reset
 
     def close(self):
         self.serial.close()
