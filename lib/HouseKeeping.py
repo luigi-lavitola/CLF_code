@@ -40,6 +40,11 @@ class HouseKeeping:
 
         # WATCH_PPS: PPS reports (host clock at the PPS edge) when gpsd has a PPS source
         self.gpsd = gps.gps(mode=gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE | getattr(gps, 'WATCH_PPS', 0))
+        # raw=1: also the binary packets of the receiver, as hex dumps (UBX messages for GpsInfo)
+        try:
+            self.gpsd.send('?WATCH={"enable":true,"json":true,"pps":true,"raw":1}')
+        except Exception as e:
+            logging.getLogger("housekeeping").warning(f"gpsd raw watch not enabled: {e!r}")
         self.gps_thr = None
         self.gps_status = GpsStatus()
         self.gps_warned = {}            # warning key -> time of the last log
@@ -98,7 +103,13 @@ class HouseKeeping:
         while self.running:
             try:
                 report = self.gpsd.next()
-                self.gps_status.update(report, time.time())
+                # a non-JSON line (raw=1 hex dump, NMEA): next() returns the previous JSON
+                # report again, which must not be stored as new
+                line = getattr(self.gpsd, 'response', None)
+                if isinstance(line, str) and not line.lstrip().startswith('{'):
+                    self.gps_status.update_raw(line, time.time())
+                else:
+                    self.gps_status.update(report, time.time())
                 if failing:
                     self.log.info("gpsd readout recovered")
                     failing = False

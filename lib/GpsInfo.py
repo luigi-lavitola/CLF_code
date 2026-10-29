@@ -6,17 +6,28 @@ Receiver and time-reference information from the gpsd reports (JSON protocol):
   PPS  real_sec/real_nsec (GPS second of the PPS edge) and clock_sec/clock_nsec (host
        clock at that edge): only when gpsd has a PPS source (WATCH_PPS)
 
+and from UBX messages of the u-blox receiver, passed through by gpsd as hex dumps
+(?WATCH raw=1) and sent periodically by the receiver (setup/README.md, LEA-M8F):
+
+  NAV-TIMEGPS  time valid, leap seconds valid, time accuracy estimate tAcc
+  NAV-CLOCK    oscillator drift
+  MON-SMGR     disciplining source of the sync manager: GNSS, or internal = holdover
+  MON-HW       AGC and jamming indicator (antenna / RF health)
+
 The last report of each class is kept; values older than STALE_S are not used.
 Fields missing in a given gpsd version / receiver give NaN.
 """
 
 import math
+import string
 import time
 from datetime import datetime, timezone
 
 from lib.GpsTime import gps_utc_offset
+from lib.Ubx import UbxStream, decode_fields
 
 STALE_S = 10
+UBX_STALE_S = 30            # the receiver sends the UBX messages every 10 s
 
 # host clock - GPS beyond these values: the FPGA time alignment (TimeSync, which uses the
 # host clock) may write the wrong second. TPV time includes the reporting latency of the
@@ -24,7 +35,11 @@ STALE_S = 10
 CLOCK_OFFSET_WARN_S = {"PPS": 0.1, "TPV": 0.5}
 
 FIELDS = ("gps_fix_age", "gps_sats_used", "gps_sats_visible", "gps_snr_mean", "gps_hdop", "gps_tdop",
-          "gps_lat", "gps_lon", "gps_alt", "gps_clock_offset", "gps_leapseconds")
+          "gps_lat", "gps_lon", "gps_alt", "gps_clock_offset", "gps_leapseconds",
+          "gps_tacc_ns", "gps_time_valid", "gps_holdover", "gps_osc_drift", "gps_agc", "gps_jam")
+
+TACC_WARN_NS = 50           # GPS time accuracy estimate worse than this: warning
+JAM_WARN = 150              # MON-HW jamInd (0 = no interference, 255 = strong)
 
 NAN = float("nan")
 
@@ -57,11 +72,29 @@ class GpsStatus:
 
     def __init__(self):
         self.reports = {}               # class -> (host time when received, report)
+        self.ubx = {}                   # UBX message name -> (host time, decode_fields() dict)
+        self.ubx_stream = UbxStream()
 
     def update(self, report, host_time=None):
         cls = _get(report, "class")
         if cls:
             self.reports[cls] = (time.time() if host_time is None else host_time, report)
+
+    def update_raw(self, line, host_time=None):
+        """Non-JSON line from gpsd: a hex dump of a binary packet (raw=1) is decoded,
+        anything else (NMEA sentences, ...) ignored."""
+        text = line.strip() if isinstance(line, str) else ""
+        if not text or len(text) % 2 or not all(c in string.hexdigits for c in text):
+            return
+        t = time.time() if host_time is None else host_time
+        for name, payload in self.ubx_stream.feed(bytes.fromhex(text)):
+            fields = decode_fields(name, payload)
+            if fields is not None:
+                self.ubx[name] = (t, fields)
+
+    def _ubx(self, name, now):
+        t, fields = self.ubx.get(name, (None, None))
+        return fields if t is not None and now - t <= UBX_STALE_S else None
 
     def _last(self, cls, now):
         t, report = self.reports.get(cls, (None, None))
@@ -111,6 +144,20 @@ class GpsStatus:
             v["gps_alt"] = _num(_get(tpv, "altHAE", _get(tpv, "alt")))
             v["gps_leapseconds"] = _num(_get(tpv, "leapseconds"))
         v["gps_clock_offset"], _ = self.clock_offset(now)
+        tg = self._ubx("NAV-TIMEGPS", now)
+        if tg is not None:
+            v["gps_tacc_ns"] = float(tg["tacc_ns"])
+            v["gps_time_valid"] = float(tg["tow_valid"] and tg["week_valid"] and tg["leap_valid"])
+        sm = self._ubx("MON-SMGR", now)
+        if sm is not None:
+            v["gps_holdover"] = float(sm["disc_src"] != 1)
+        clk = self._ubx("NAV-CLOCK", now)
+        if clk is not None:
+            v["gps_osc_drift"] = float(clk["clk_drift_ns_s"])
+        hw = self._ubx("MON-HW", now)
+        if hw is not None:
+            v["gps_agc"] = float(hw["agc"])
+            v["gps_jam"] = float(hw["jam"])
         return v
 
     def warnings(self, now):
@@ -127,4 +174,14 @@ class GpsStatus:
             if int(leap) != table:
                 out["leap"] = (f"GPS reports {int(leap)} leap seconds, lib/GpsTime.py has {table}: "
                                "add the new leap second to LEAP_SECONDS")
+        sm = self._ubx("MON-SMGR", now)
+        if sm is not None and sm["disc_src"] != 1:
+            out["holdover"] = (f"GPS in holdover (disciplining source {sm['disc_src_name']}): the PPS "
+                               "is not locked to GNSS and drifts from GPS time")
+        tg = self._ubx("NAV-TIMEGPS", now)
+        if tg is not None and tg["tacc_ns"] > TACC_WARN_NS:
+            out["tacc"] = f"GPS time accuracy estimate {tg['tacc_ns']} ns (> {TACC_WARN_NS} ns)"
+        hw = self._ubx("MON-HW", now)
+        if hw is not None and hw["jam"] > JAM_WARN:
+            out["jam"] = f"GPS jamming indicator {hw['jam']} (> {JAM_WARN}): RF interference"
         return out

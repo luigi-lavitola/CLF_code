@@ -2,6 +2,7 @@
 
 import logging
 import math
+import time
 import types
 
 import pytest
@@ -109,3 +110,96 @@ def test_housekeeping_logs_gps_values_and_rate_limits_warnings(monkeypatch):
     h.check_gps_warnings()
     h.check_gps_warnings()                               # same hour: not repeated
     assert len(warnings) == 1
+
+
+# --- UBX messages via gpsd raw=1 (hex dumps) ------------------------------------------------
+
+import struct
+
+from lib.Ubx import ubx_frame
+
+
+def timegps(tacc=7, valid=0x07, leap=18):
+    return ubx_frame(0x01, 0x20, struct.pack("<IihbBI", 402343000, 0, 2442, leap, valid, tacc))
+
+
+def smgr(src=1):
+    return ubx_frame(0x0A, 0x2E, bytes(4) + struct.pack("<IHHBBBB", 0, 0x0070, 0x0003, src, 1, 0, 0))
+
+
+def clock(drift=1):
+    return ubx_frame(0x01, 0x22, struct.pack("<IiiII", 0, 242380, drift, 7, 164))
+
+
+def monhw(agc=3666, jam=20):
+    p = bytearray(60)
+    struct.pack_into("<HH", p, 16, 101, agc)
+    p[20], p[21], p[45] = 1, 2, jam
+    return ubx_frame(0x0A, 0x09, bytes(p))
+
+
+def raw_status(*frames, at=NOW):
+    s = GpsStatus()
+    for f in frames:
+        s.update_raw(f.hex() + "\r\n", at)
+    return s
+
+
+def test_ubx_values_from_hex_dumps():
+    v = raw_status(timegps(), smgr(), clock(), monhw()).values(NOW)
+    assert v["gps_tacc_ns"] == 7 and v["gps_time_valid"] == 1 and v["gps_holdover"] == 0
+    assert v["gps_osc_drift"] == 1 and v["gps_agc"] == 3666 and v["gps_jam"] == 20
+
+
+def test_ubx_missing_or_stale_is_nan():
+    assert math.isnan(GpsStatus().values(NOW)["gps_tacc_ns"])
+    v = raw_status(timegps(), at=NOW - 60).values(NOW)
+    assert math.isnan(v["gps_tacc_ns"])
+
+
+def test_ubx_frame_split_and_other_lines():
+    s = GpsStatus()
+    h = smgr(src=0).hex()
+    s.update_raw("$GNRMC,154527.00,A,4050.28,N,01410.97,E,0.0,,291026,,,A*7B\r\n", NOW)   # NMEA: ignored
+    s.update_raw(h[:20], NOW)
+    s.update_raw(h[20:], NOW)
+    s.update_raw("not hex at all", NOW)
+    assert s.values(NOW)["gps_holdover"] == 1
+
+
+def test_ubx_bad_checksum_ignored():
+    f = bytearray(timegps(tacc=5))
+    f[-1] ^= 0xFF
+    assert math.isnan(raw_status(bytes(f)).values(NOW)["gps_tacc_ns"])
+
+
+def test_ubx_warnings():
+    assert raw_status(timegps(), smgr(), monhw()).warnings(NOW) == {}
+    w = raw_status(timegps(tacc=80), smgr(src=0), monhw(jam=200)).warnings(NOW)
+    assert set(w) == {"holdover", "tacc", "jam"} and "internal" in w["holdover"]
+
+
+def test_housekeeping_raw_line_does_not_refresh_old_report(monkeypatch):
+    """gps.next() returns the previous JSON report again for a raw line: it must not be
+    stored as a new TPV (the fix age / staleness would be wrong)."""
+    import lib.HouseKeeping as hk_module
+    h = HouseKeeping.__new__(HouseKeeping)
+    h.log = logging.getLogger("test_hk_gps_raw")
+    h.gps_status = GpsStatus()
+    h.gps_status.update(TPV, NOW - 60)
+    lines = iter([smgr(src=0).hex() + "\r\n"])
+    h.running = True
+
+    def next_():
+        try:
+            h.gpsd.response = next(lines)
+        except StopIteration:
+            h.running = False
+            raise RuntimeError("done")
+        return TPV                          # stale JSON report, as the gps client does
+    h.gpsd = types.SimpleNamespace(next=next_, response="")
+    monkeypatch.setattr(hk_module.time, "sleep", lambda s: setattr(h, "running", False))
+    h.GPS_RETRY_S = 1
+    h.collect_gps()
+    assert h.gps_status.reports["TPV"][0] == NOW - 60          # not refreshed
+    assert h.gps_status.values(time.time())["gps_holdover"] == 1

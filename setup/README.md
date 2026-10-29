@@ -76,6 +76,21 @@ ubxtool -f /dev/gps0 -s 115200 -p SAVE                      # salva in flash
 python3 tools/gps_probe.py /dev/gps0 -b 115200 -t 5        # deve leggere i messaggi a 115200
 ```
 
+Messaggi UBX periodici per l'housekeeping (`lib/GpsInfo.py`: tAcc, holdover, deriva
+dell'oscillatore, AGC/jamming), ogni 10 epoche, poi di nuovo `SAVE`:
+
+```bash
+ubxtool -f /dev/gps0 -s 115200 -c 0x06,0x01,0x01,0x20,0x0a   # NAV-TIMEGPS
+ubxtool -f /dev/gps0 -s 115200 -c 0x06,0x01,0x01,0x22,0x0a   # NAV-CLOCK
+ubxtool -f /dev/gps0 -s 115200 -c 0x06,0x01,0x0a,0x2e,0x0a   # MON-SMGR (holdover)
+ubxtool -f /dev/gps0 -s 115200 -c 0x06,0x01,0x0a,0x09,0x0a   # MON-HW
+ubxtool -f /dev/gps0 -s 115200 -p SAVE
+```
+
+L'housekeeping li riceve da gpsd come hex dump (`?WATCH` con `raw:1`): con gpsd acceso,
+`gpspipe -R` deve mostrare pacchetti che iniziano con `b562`, e in `hk.csv` le colonne
+`gps_tacc_ns` … `gps_jam` non devono restare `nan`.
+
 Il PPS per l'FPGA è **TIMEPULSE2** (1 s, impulso 100 ms, fronte di salita, nessun impulso
 finché il modulo non è agganciato). TIMEPULSE1 non è usato come timepulse.
 

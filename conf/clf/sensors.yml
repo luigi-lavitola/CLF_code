@@ -159,3 +159,31 @@
   name: gps_leapseconds
   value: .nan
   unit: s
+
+# UBX messages of the u-blox receiver via gpsd raw=1 (lib/GpsInfo.py), no alarm (warnings only)
+
+- dev: gps
+  name: gps_tacc_ns           # NAV-TIMEGPS time accuracy estimate
+  value: .nan
+  unit: ns
+
+- dev: gps
+  name: gps_time_valid        # NAV-TIMEGPS: TOW, week and leap seconds valid (1/0)
+  value: .nan
+
+- dev: gps
+  name: gps_holdover          # MON-SMGR: 1 = disciplining source not GNSS (holdover)
+  value: .nan
+
+- dev: gps
+  name: gps_osc_drift         # NAV-CLOCK oscillator drift
+  value: .nan
+  unit: ns/s
+
+- dev: gps
+  name: gps_agc               # MON-HW AGC (0..8191)
+  value: .nan
+
+- dev: gps
+  name: gps_jam               # MON-HW jamming indicator (0..255)
+  value: .nan
