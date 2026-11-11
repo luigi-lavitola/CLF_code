@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ site or "CLF" }} turno</title>
+<title>{{ site or "CLF" }} shift</title>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
   :root {
@@ -72,18 +72,18 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>{{ site or "CLF" }} · dashboard di turno</h1>
+    <h1>{{ site or "CLF" }} · shift dashboard</h1>
     <span class="meta" id="range">—</span>
-    <div class="ranges" role="group" aria-label="Periodo">
-      <button data-days="1">1 g</button><button data-days="3" aria-pressed="true">3 g</button>
-      <button data-days="7">7 g</button><button data-days="30">30 g</button><button data-days="0">tutto</button>
+    <div class="ranges" role="group" aria-label="Time range">
+      <button data-days="1">1 d</button><button data-days="3" aria-pressed="true">3 d</button>
+      <button data-days="7">7 d</button><button data-days="30">30 d</button><button data-days="0">all</button>
     </div>
   </header>
 
-  <div class="tiles" id="tiles"><span class="loading">caricamento…</span></div>
+  <div class="tiles" id="tiles"><span class="loading">loading…</span></div>
 
   <section id="detail" class="card" style="margin-top:16px">
-    <button class="close" id="detail-close">chiudi</button>
+    <button class="close" id="detail-close">close</button>
     <h3 id="detail-title">Run</h3>
     <p class="sub" id="detail-sub"></p>
     <div class="grid2">
@@ -92,29 +92,29 @@
     </div>
   </section>
 
-  <h2>Notti</h2>
+  <h2>Nights</h2>
   <div class="tablewrap"><table id="nights"></table></div>
 
-  <h2>Timestamp dei colpi</h2>
-  <p class="hint">Un punto per run. Clic su un punto per il dettaglio colpo per colpo.</p>
+  <h2>Shot timestamps</h2>
+  <p class="hint">One point per run. Click a point for the shot-by-shot detail.</p>
   <div class="grid2">
-    <div class="card"><h3>Colpi con timestamp valido</h3><p class="sub">% del run: pacchetto ricevuto, del colpo giusto</p><div class="plot" id="p-good"></div></div>
-    <div class="card"><h3>Istante del colpo, scostamento dal tipico</h3><p class="sub">mediana del run − mediana del tipo di run nel periodo (ns)</p><div class="plot" id="p-tgps"></div></div>
-    <div class="card"><h3>Deriva entro il run</h3><p class="sub">ns per colpo (firmware v1: periodo P+2 → ~20 ns)</p><div class="plot" id="p-drift"></div></div>
-    <div class="card"><h3>Distanza PPS GPS – PPS locale</h3><p class="sub">mediana del run (ns)</p><div class="plot" id="p-pps"></div></div>
+    <div class="card"><h3>Shots with a valid timestamp</h3><p class="sub">% of the run: packet received, for the right shot</p><div class="plot" id="p-good"></div></div>
+    <div class="card"><h3>Shot time, deviation from typical</h3><p class="sub">run median − median of the run type in the range (ns)</p><div class="plot" id="p-tgps"></div></div>
+    <div class="card"><h3>Drift within the run</h3><p class="sub">ns per shot (firmware v1: period P+2 → ~20 ns)</p><div class="plot" id="p-drift"></div></div>
+    <div class="card"><h3>GPS PPS – local PPS distance</h3><p class="sub">run median (ns)</p><div class="plot" id="p-pps"></div></div>
   </div>
 
   <h2>Laser</h2>
   <div class="grid2">
-    <div class="card"><h3>Potenza per run</h3><p class="sub">mediana dei colpi validi (radiometro)</p><div class="plot" id="p-power"></div></div>
-    <div class="card"><h3>Potenza lungo il run</h3><p class="sub">% della mediana del proprio run; mediana su tutti i run del periodo</p><div class="plot" id="p-profile"></div></div>
-    <div class="card"><h3>Preparazione del laser</h3><p class="sub">durata per run (s)</p><div class="plot" id="p-prep"></div></div>
+    <div class="card"><h3>Power per run</h3><p class="sub">median of the valid shots (radiometer)</p><div class="plot" id="p-power"></div></div>
+    <div class="card"><h3>Power along the run</h3><p class="sub">% of the median of its own run; median over all runs in the range</p><div class="plot" id="p-profile"></div></div>
+    <div class="card"><h3>Laser preparation</h3><p class="sub">duration per run (s)</p><div class="plot" id="p-prep"></div></div>
   </div>
 
   <h2>Housekeeping</h2>
   <div class="grid2" id="hk"></div>
 
-  <h2>Eventi</h2>
+  <h2>Events</h2>
   <p class="hint" id="refusals"></p>
   <div class="tablewrap events"><table id="events"></table></div>
 </div>
@@ -143,7 +143,7 @@ function layout(ytitle, extra = {}) {
 const config = {displaylogo: false, responsive: true, modeBarButtonsToRemove: ["select2d", "lasso2d"]};
 
 // a chart with no data says so, instead of showing empty axes
-function draw(el, traces, lay, emptyText = "nessun dato nel periodo") {
+function draw(el, traces, lay, emptyText = "no data in the range") {
   if (typeof el === "string") el = document.getElementById(el);
   const empty = !traces.some(t => (t.y || []).some(v => v !== null && v !== undefined));
   if (empty) {
@@ -165,7 +165,7 @@ function runTraces(runs, yfn, label) {
       customdata: rs.map(r => r.id),
       marker: {size: 8, color: typeColor(t), line: {width: 1, color: css("--surface")},
                symbol: rs.map(r => r.status === "killed" ? "x" : r.status === "error" ? "triangle-up" : "circle")},
-      text: rs.map(r => `${r.type} ${iso(r.start)}<br>${label}: ${fmt(yfn(r), 2)}<br>stato: ${r.status}`),
+      text: rs.map(r => `${r.type} ${iso(r.start)}<br>${label}: ${fmt(yfn(r), 2)}<br>status: ${r.status}`),
       hovertemplate: "%{text}<extra></extra>",
     };
   });
@@ -182,22 +182,22 @@ function tiles(d) {
   const s = d.summary, r = s.runs;
   const items = [
     ["Run", `${(r.FD||0)+(r.TANK||0)+(r.CALIB||0)+(r.RAMAN||0)}`, `FD ${r.FD||0} · Tank ${r.TANK||0} · Calib ${r.CALIB||0}`],
-    ["Timestamp validi", s.good_pct === null ? "—" : fmt(s.good_pct) + " %", `${s.shots} colpi`],
-    ["Senza pacchetto", s.missing, "colpi"],
-    ["Pacchetto vecchio", s.stale, "di un colpo precedente"],
-    ["Pacchetto di altro colpo", s.wrong, "colpi"],
-    ["Run uccisi", s.killed, ""],
-    ["Errori", s.errors, "righe ERROR nei log"],
-    ["Rifiuti per allarme", s.refused, "run non partiti"],
+    ["Valid timestamps", s.good_pct === null ? "—" : fmt(s.good_pct) + " %", `${s.shots} shots`],
+    ["No packet", s.missing, "shots"],
+    ["Stale packet", s.stale, "from an earlier shot"],
+    ["Packet of another shot", s.wrong, "shots"],
+    ["Killed runs", s.killed, ""],
+    ["Errors", s.errors, "ERROR lines in the logs"],
+    ["Refused (alarm)", s.refused, "runs not started"],
   ];
   document.getElementById("tiles").innerHTML = items.map(([l, v, n]) =>
     `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join("");
 }
 
 function nightsTable(nights) {
-  const head = "<tr><th>Notte</th><th class=num>FD</th><th class=num>Tank</th><th class=num>Calib</th>" +
-    "<th class=num>Uccisi</th><th class=num>Con errori</th><th class=num>Rifiutati</th>" +
-    "<th class=num>Pacchetti ricevuti</th><th class=num>Timestamp validi</th></tr>";
+  const head = "<tr><th>Night</th><th class=num>FD</th><th class=num>Tank</th><th class=num>Calib</th>" +
+    "<th class=num>Killed</th><th class=num>With errors</th><th class=num>Refused</th>" +
+    "<th class=num>Packets received</th><th class=num>Valid timestamps</th></tr>";
   document.getElementById("nights").innerHTML = head + nights.map(n =>
     `<tr><td>${n.night}</td><td class=num>${n.FD}</td><td class=num>${n.TANK}</td><td class=num>${n.CALIB}</td>` +
     `<td class=num>${n.killed}</td><td class=num>${n.error}</td><td class=num>${n.refused}</td>` +
@@ -211,10 +211,10 @@ function hkGroups(hk) {
     g.forEach(n => used.add(n));
     if (g.length) groups.push({title, unit, names: g});
   };
-  take("Batterie", "V", n => n.startsWith("battery"));
-  take("Pannelli solari", "V", n => n.startsWith("solar"));
-  take("Temperature", "°C", n => /^t\d+$/.test(n));
-  take("Stati (0/1)", "", n => hk[n].bool);
+  take("Batteries", "V", n => n.startsWith("battery"));
+  take("Solar panels", "V", n => n.startsWith("solar"));
+  take("Temperatures", "°C", n => /^t\d+$/.test(n));
+  take("States (0/1)", "", n => hk[n].bool);
   names.filter(n => !used.has(n)).forEach(n => groups.push({title: n, unit: hk[n].unit, names: [n]}));
   return groups;
 }
@@ -241,44 +241,44 @@ function plotHk(hk) {
         lay.yaxis.range = [lo - pad, hi + pad];
       }
     }
-    if (g.title === "Stati (0/1)") lay.yaxis.range = [-0.1, 1.1 + 0.15 * (g.names.length - 1)];
-    if (g.title === "Stati (0/1)") traces.forEach((t, i) => t.y = t.y.map(v => v === null ? null : v + 0.15 * i));
+    if (g.title === "States (0/1)") lay.yaxis.range = [-0.1, 1.1 + 0.15 * (g.names.length - 1)];
+    if (g.title === "States (0/1)") traces.forEach((t, i) => t.y = t.y.map(v => v === null ? null : v + 0.15 * i));
     draw(card.querySelector(".plot"), traces, lay);
   });
 }
 
 function eventsTable(events, refusals) {
-  const ref = refusals.length ? "Run rifiutati: " + refusals.map(r =>
-    `${iso(r.t)} ${r.type} (${r.reason === "alarm" ? "allarmi " + r.alarms.join(", ") : "altro job in corso"})`).join(" · ") : "";
+  const ref = refusals.length ? "Refused runs: " + refusals.map(r =>
+    `${iso(r.t)} ${r.type} (${r.reason === "alarm" ? "alarms " + r.alarms.join(", ") : "another job running"})`).join(" · ") : "";
   document.getElementById("refusals").textContent = ref;
   document.getElementById("events").innerHTML =
-    "<tr><th>UTC</th><th>Livello</th><th>File</th><th>Sorgente</th><th>Messaggio</th></tr>" +
+    "<tr><th>UTC</th><th>Level</th><th>File</th><th>Source</th><th>Message</th></tr>" +
     events.map(e => `<tr><td>${iso(e.t)}</td><td class="lvl-${e.level}">${e.level}</td><td>${e.file}</td>` +
       `<td>${e.source}</td><td class=msg>${e.msg.replace(/</g, "&lt;")}</td></tr>`).join("");
 }
 
 function render(d) {
   current = d;
-  document.getElementById("range").textContent = `dati ${iso(d.t_from)} → ${iso(d.t_to)} UTC`;
+  document.getElementById("range").textContent = `data ${iso(d.t_from)} → ${iso(d.t_to)} UTC`;
   tiles(d);
   nightsTable(d.nights);
   const runs = d.runs;
-  plotRuns("p-good", runs, r => r.good_pct, "%", "validi %");
+  plotRuns("p-good", runs, r => r.good_pct, "%", "valid %");
   const typical = {};
   TYPES.forEach(t => {
     const v = runs.filter(r => r.type === t && r.t_gps_ms !== null).map(r => r.t_gps_ms).sort((a, b) => a - b);
     typical[t] = v.length ? v[Math.floor(v.length / 2)] : null;
   });
-  plotRuns("p-tgps", runs, r => r.t_gps_ms === null ? null : (r.t_gps_ms - typical[r.type]) * 1e6, "ns", "scostamento ns");
-  plotRuns("p-drift", runs, r => r.drift_ns_per_shot, "ns / colpo", "deriva");
-  plotRuns("p-pps", runs, r => r.pps_median_ns, "ns", "distanza PPS");
-  plotRuns("p-power", runs, r => r.power_median, "potenza (unità radiometro)", "potenza");
+  plotRuns("p-tgps", runs, r => r.t_gps_ms === null ? null : (r.t_gps_ms - typical[r.type]) * 1e6, "ns", "deviation ns");
+  plotRuns("p-drift", runs, r => r.drift_ns_per_shot, "ns / shot", "drift");
+  plotRuns("p-pps", runs, r => r.pps_median_ns, "ns", "PPS distance");
+  plotRuns("p-power", runs, r => r.power_median, "power (radiometer units)", "power");
   const prof = ["FD", "TANK"].filter(t => d.profile[t].i.length).map(t => ({
     type: "scatter", mode: "lines+markers", name: `${t} (${d.profile[t].n_runs} run)`, x: d.profile[t].i, y: d.profile[t].median,
     line: {width: 2, color: typeColor(t)}, marker: {size: 8, color: typeColor(t)},
-    hovertemplate: `${t} colpo %{x}: %{y:.1f} %<extra></extra>`}));
-  draw("p-profile", prof, layout("% della mediana del run", {xaxis: {title: {text: "indice del colpo"}, gridcolor: css("--grid")}}));
-  const prepTraces = [["laser_setup_s", "laser setup"], ["fire_auth_s", "attesa autorizzazione fuoco"], ["prepare_s", "prepare totale"]]
+    hovertemplate: `${t} shot %{x}: %{y:.1f} %<extra></extra>`}));
+  draw("p-profile", prof, layout("% of the run median", {xaxis: {title: {text: "shot index"}, gridcolor: css("--grid")}}));
+  const prepTraces = [["laser_setup_s", "laser setup"], ["fire_auth_s", "wait for fire authorization"], ["prepare_s", "total prepare"]]
     .map(([k, name], i) => {
       const rs = runs.filter(r => r[k] !== null);
       return {type: "scatter", mode: "markers", name, x: rs.map(r => iso(r.start)), y: rs.map(r => r[k]),
@@ -307,25 +307,25 @@ async function openRun(id) {
   box.classList.add("open");
   document.getElementById("detail-title").textContent = `${r.type} ${iso(r.start)} UTC — ${r.status}`;
   document.getElementById("detail-sub").textContent =
-    `${r.n_shots} colpi · pacchetto ${r.n_packet} · vecchi ${r.n_stale} · di altro colpo ${r.n_wrong} · ` +
-    `prepare ${fmt(r.prepare_s, 0)} s` + (r.errors.length ? " · errori: " + r.errors.join(" | ") : "");
-  const cls = s => !s.packet ? "senza pacchetto" : s.stale ? "pacchetto vecchio" : s.wrong ? "pacchetto di altro colpo" : "valido";
-  const order = ["valido", "senza pacchetto", "pacchetto vecchio", "pacchetto di altro colpo"];
-  const colors = {"valido": css("--s1"), "senza pacchetto": css("--critical"), "pacchetto vecchio": css("--serious"), "pacchetto di altro colpo": css("--warning")};
-  const symbols = {"valido": "circle", "senza pacchetto": "x", "pacchetto vecchio": "square", "pacchetto di altro colpo": "diamond"};
-  const valid = r.shots.filter(s => cls(s) === "valido" && s.t_gps_ns !== null);
+    `${r.n_shots} shots · packet ${r.n_packet} · stale ${r.n_stale} · of another shot ${r.n_wrong} · ` +
+    `prepare ${fmt(r.prepare_s, 0)} s` + (r.errors.length ? " · errors: " + r.errors.join(" | ") : "");
+  const cls = s => !s.packet ? "no packet" : s.stale ? "stale packet" : s.wrong ? "packet of another shot" : "valid";
+  const order = ["valid", "no packet", "stale packet", "packet of another shot"];
+  const colors = {"valid": css("--s1"), "no packet": css("--critical"), "stale packet": css("--serious"), "packet of another shot": css("--warning")};
+  const symbols = {"valid": "circle", "no packet": "x", "stale packet": "square", "packet of another shot": "diamond"};
+  const valid = r.shots.filter(s => cls(s) === "valid" && s.t_gps_ns !== null);
   const t0 = valid.length ? valid[0].t_gps_ns : 0;
-  draw("d-time", [{type: "scatter", mode: "lines+markers", name: "valido", x: valid.map(s => s.i), y: valid.map(s => s.t_gps_ns - t0),
-    line: {width: 2, color: css("--s1")}, marker: {size: 8}, hovertemplate: "colpo %{x}: %{y:.0f} ns<extra></extra>"}],
-    layout("ns dal primo colpo valido", {xaxis: {title: {text: "colpo"}, gridcolor: css("--grid")}, showlegend: false}),
-    "nessun colpo con timestamp valido");
+  draw("d-time", [{type: "scatter", mode: "lines+markers", name: "valid", x: valid.map(s => s.i), y: valid.map(s => s.t_gps_ns - t0),
+    line: {width: 2, color: css("--s1")}, marker: {size: 8}, hovertemplate: "shot %{x}: %{y:.0f} ns<extra></extra>"}],
+    layout("ns from the first valid shot", {xaxis: {title: {text: "shot"}, gridcolor: css("--grid")}, showlegend: false}),
+    "no shot with a valid timestamp");
   const ptr = order.filter(c => r.shots.some(s => cls(s) === c)).map(c => {
     const ss = r.shots.filter(s => cls(s) === c);
     return {type: "scatter", mode: "markers", name: c, x: ss.map(s => s.i), y: ss.map(s => s.power === null ? 0 : s.power),
             marker: {size: 9, color: colors[c], symbol: symbols[c]},
-            hovertemplate: `colpo %{x} (${c}): %{y:.3e}<extra></extra>`};
+            hovertemplate: `shot %{x} (${c}): %{y:.3e}<extra></extra>`};
   });
-  draw("d-power", ptr, layout("potenza", {xaxis: {title: {text: "colpo"}, gridcolor: css("--grid")}}));
+  draw("d-power", ptr, layout("power", {xaxis: {title: {text: "shot"}, gridcolor: css("--grid")}}));
   box.scrollIntoView({behavior: "smooth", block: "start"});
 }
 
