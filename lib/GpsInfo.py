@@ -77,6 +77,10 @@ class GpsStatus:
 
     def update(self, report, host_time=None):
         cls = _get(report, "class")
+        if cls == "SKY" and _get(report, "satellites") is None:
+            # gpsd >= 3.2x with a u-blox in UBX mode sends a second SKY per epoch with the
+            # DOPs only: keep it apart, so it does not hide the satellite list
+            cls = "SKY_DOP"
         if cls:
             self.reports[cls] = (time.time() if host_time is None else host_time, report)
 
@@ -99,6 +103,15 @@ class GpsStatus:
     def _last(self, cls, now):
         t, report = self.reports.get(cls, (None, None))
         return report if t is not None and now - t <= STALE_S else None
+
+    def _newest(self, classes, now):
+        """Most recent non-stale report among the given classes (None if none)."""
+        best_t, best = None, None
+        for cls in classes:
+            t, report = self.reports.get(cls, (None, None))
+            if t is not None and now - t <= STALE_S and (best_t is None or t >= best_t):
+                best_t, best = t, report
+        return best
 
     def clock_offset(self, now):
         """(host clock - GPS in s, source 'PPS'/'TPV'), (NaN, None) if not available."""
@@ -136,8 +149,10 @@ class GpsStatus:
             snr = [_num(_get(s, "ss")) for s in used]
             snr = [x for x in snr if not math.isnan(x)]
             v["gps_snr_mean"] = sum(snr) / len(snr) if snr else NAN
-            v["gps_hdop"] = _num(_get(sky, "hdop"))
-            v["gps_tdop"] = _num(_get(sky, "tdop"))
+        dop = self._newest(("SKY", "SKY_DOP"), now)
+        if dop is not None:
+            v["gps_hdop"] = _num(_get(dop, "hdop"))
+            v["gps_tdop"] = _num(_get(dop, "tdop"))
         if tpv is not None:
             v["gps_lat"] = _num(_get(tpv, "lat"))
             v["gps_lon"] = _num(_get(tpv, "lon"))

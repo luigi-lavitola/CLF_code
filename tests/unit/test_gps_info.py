@@ -46,6 +46,15 @@ def test_newer_gpsd_counts_preferred():
     assert v["gps_sats_used"] == 8 and v["gps_sats_visible"] == 11
 
 
+def test_dop_only_sky_does_not_hide_satellites():
+    # gpsd 3.25 + u-blox in UBX mode: SKY with the satellites, then SKY with the DOPs only
+    sky_dop = {"class": "SKY", "hdop": 1.2, "tdop": 1.5}
+    v = status(dict(SKY, nSat=23, uSat=10), sky_dop).values(NOW)
+    assert v["gps_sats_used"] == 10 and v["gps_sats_visible"] == 23
+    assert v["gps_snr_mean"] == 41.0
+    assert v["gps_hdop"] == 1.2 and v["gps_tdop"] == 1.5      # DOPs from the newest SKY
+
+
 def test_missing_fields_are_nan():
     v = status({"class": "TPV", "mode": 2}).values(NOW)  # old gpsd, no leapseconds/alt
     assert all(math.isnan(v[k]) for k in ("gps_leapseconds", "gps_alt", "gps_sats_used", "gps_clock_offset"))
