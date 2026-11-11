@@ -11,6 +11,96 @@ File di questa cartella:
 | `gpsd.default` | `/etc/default/gpsd` |
 | `90-pps.rules` | `/etc/udev/rules.d/90-pps.rules` |
 | `chrony-clf.conf` | `/etc/chrony/conf.d/clf.conf` (oppure in coda a `/etc/chrony/chrony.conf`) |
+| `99-clf-serial.rules` | `/etc/udev/rules.d/99-clf-serial.rules` |
+| `pps-gpio.dts` | overlay del PPS (vedi §0.2) |
+
+Su un Rock **nuovo** partire dal §0; su un PC già installato basta dal §1.
+
+---
+
+## 0. Rock 5B nuovo
+
+Provato il 2026-11-11 su **Armbian 26.11 (Debian 13 trixie), kernel 6.18 `current-rockchip64`**.
+I PC in sito hanno invece l'immagine Radxa (Debian 12, kernel 6.1 Rockchip): le differenze sono indicate.
+
+```bash
+timedatectl set-timezone UTC
+hostnamectl set-hostname clf-rock-5b             # o xlf-rock-5b
+apt update && apt full-upgrade
+```
+
+Se `apt` reinstalla il pacchetto del kernel, `uname -r` e `/lib/modules/` possono non coincidere
+fino al reboot (nessun modulo caricabile, nemmeno `pps-gpio`): riavviare prima di provare il PPS.
+
+### 0.1 Porte USB
+
+| Device | Chip | Uso |
+|---|---|---|
+| `/dev/runcontrol` | CMOD A7 (Digilent 0403:6010), interfaccia 1 | registri FPGA |
+| `/dev/fpgaprog` | CMOD A7, interfaccia 0 | JTAG |
+| `/dev/gps0` | FT4232H (0403:6011), interfaccia 2 | GPS LEA-M8F (low latency) |
+| `/dev/data0` | FT4232H, interfaccia 3 | UART dati della FPGA |
+| — | FT4232H, interfacce 0 e 1 | SPI dell'housekeeping (pyftdi) |
+
+```bash
+apt install setserial
+cp setup/99-clf-serial.rules setup/90-pps.rules /etc/udev/rules.d/
+udevadm control --reload && udevadm trigger --subsystem-match=tty --action=add
+ls -l /dev/runcontrol /dev/fpgaprog /dev/gps0 /dev/data0
+```
+
+Le regole non usano numeri di serie (il FT4232H non ne ha, e così la CMOD A7 si può sostituire):
+sul PC ci deve essere un solo FT4232H e una sola scheda Digilent.
+
+### 0.2 PPS dal GPIO
+
+Il PPS (`PPS_out_PC` della FPGA) entra su **GPIO3_A4** (`gpios = <&gpio3 4 0>`), come sui PC in sito.
+
+```bash
+armbian-add-overlay setup/pps-gpio.dts           # Armbian: compila in /boot/overlay-user, user_overlays=pps-gpio
+reboot
+cat /sys/class/pps/pps0/name                     # pps@0.-1  (pps1 "usbserial..." è quello di gpsd sul DCD: non usato)
+ppstest /dev/pps0                                # una riga "assert" al secondo, con la FPGA programmata
+```
+
+Immagine Radxa: `dtc -@ -I dts -O dtb -o /boot/dtbo/pps.dtbo setup/pps-gpio.dts` e
+`fdtoverlays /boot/dtbo/pps.dtbo` in `/boot/extlinux/extlinux.conf`.
+
+### 0.3 Firmware della FPGA nella flash
+
+La CMOD A7 si programma una volta nella flash SPI e riparte da sola a ogni accensione:
+
+```bash
+apt install openfpgaloader
+openFPGALoader -b cmoda7_35t --detect               # idcode 0x362d093, xc7a35
+openFPGALoader -b cmoda7_35t -f --verify topm.bit   # scrive e verifica la flash (MX25L3233F)
+openFPGALoader -b cmoda7_35t -r                     # riparte dalla flash, come all'accensione
+python3 tools/fpga_status.py /dev/runcontrol --hw 2 # 0xFC = data del bitstream, PPS_PRESENT=1
+```
+
+openFPGALoader contiene già il bitstream ponte JTAG→SPI per xc7a35t cpg236.
+Con `xc3sprog` la FPGA si vede con il cavo `jtaghs1_fast` (`xc3sprog -c jtaghs1_fast -j`), ma per la
+flash servirebbe un bitstream `bscan_spi` per cpg236, che il pacchetto Debian non contiene.
+
+### 0.4 Driver MOXA (porte `/dev/ttyr00`…`0f`)
+
+Le porte di laser, RPC, radiometri, motori e meteo (`conf/<sito>/ports.yml`) sono su un MOXA NPort a 16
+porte in modalità **Real COM**. Driver "NPort Real TTY Driver for Linux" dal sito MOXA (pagina della
+serie NPort 5600): per kernel 6.x la **v6.2** (`moxa-real-tty-linux-kernel-6.x-driver-v6.2.tar`).
+
+```bash
+apt install build-essential linux-headers-current-rockchip64   # header del kernel in uso
+mkdir -p /root/moxa && cd /root/moxa
+tar xf moxa-real-tty-linux-kernel-6.x-driver-v6.2.tar
+cd moxa && ./mxinst                              # avviso sul kernel: invio; "secure function": N
+cd /usr/lib/npreal2/driver
+./mxaddsvr <IP del MOXA> 16                      # crea ttyr00..ttyr0f, porte dati 950.., comandi 966..
+```
+
+`mxinst` installa e abilita `npreal2.service`. `mxaddsvr` scrive solo la configurazione
+(`npreal2d.cf`): si può fare anche senza il MOXA collegato. Per cambiare IP:
+`./mxdelsvr <vecchio IP>` e di nuovo `./mxaddsvr <nuovo IP> 16`.
+Dopo un aggiornamento del kernel il modulo va ricompilato (di nuovo `./mxinst`).
 
 ---
 
@@ -120,6 +210,9 @@ systemctl restart chrony
 chronyc sources -v                              # dopo qualche minuto: '*' accanto a PPS
 chronyc tracking                                # "System time" entro pochi microsecondi
 ```
+
+**Attenzione:** se `/dev/pps0` non esiste (overlay mancante, kernel e moduli non coerenti), chrony
+non parte affatto (`Fatal error : Could not open /dev/pps0`) e il PC resta senza sincronizzazione.
 
 Se la sorgente GPS risulta sempre spostata di qualche decimo di secondo, correggere `offset` nella riga
 `refclock SHM 0` di `clf.conf` con quel valore (deve solo stare entro ±0.5 s perché `lock GPS` funzioni).

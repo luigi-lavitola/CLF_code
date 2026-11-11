@@ -1,0 +1,22 @@
+// PPS from the FPGA (PPS_out_PC) on GPIO3_A4 of the Rock 5B -> /dev/pps0
+// Same pin as on the site PCs (Radxa image: /root/pps.dts, /boot/dtbo/pps.dtbo).
+//
+// Armbian:      armbian-add-overlay setup/pps-gpio.dts      (then reboot)
+// Radxa image:  dtc -@ -I dts -O dtb -o /boot/dtbo/pps.dtbo setup/pps-gpio.dts
+//               and "fdtoverlays /boot/dtbo/pps.dtbo" in /boot/extlinux/extlinux.conf
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "rockchip,rk3588";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			pps: pps@0 {
+				compatible = "pps-gpio";
+				gpios = <&gpio3 4 0>;	/* GPIO3_A4, active high */
+			};
+		};
+	};
+};

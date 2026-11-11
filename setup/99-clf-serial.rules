@@ -1,0 +1,16 @@
+# /etc/udev/rules.d/99-clf-serial.rules
+# Fixed names for the USB serial ports of the CLF/XLF control PC.
+#
+# FT4232H (0403:6011), one per PC, no serial number:
+#   if00, if01  SPI of the housekeeping (pyftdi, ftdi://ftdi:4232h/1 and /2)
+#   if02        GPS LEA-M8F         -> /dev/gps0 (low latency: 1 ms FTDI latency timer)
+#   if03        FPGA data UART      -> /dev/data0
+# CMOD A7 (Digilent, 0403:6010): matched without serial number, so that the FPGA board
+# can be swapped without editing this file (only one Digilent device on the PC):
+#   if00        JTAG                -> /dev/fpgaprog
+#   if01        FPGA run control    -> /dev/runcontrol
+
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6011", ENV{ID_USB_INTERFACE_NUM}=="02", SYMLINK+="gps0", GROUP="dialout", MODE="0660", RUN+="/bin/setserial /dev/%k low_latency"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6011", ENV{ID_USB_INTERFACE_NUM}=="03", SYMLINK+="data0", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6010", ATTRS{manufacturer}=="Digilent", ENV{ID_USB_INTERFACE_NUM}=="00", SYMLINK+="fpgaprog", GROUP="dialout", MODE="0660"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6010", ATTRS{manufacturer}=="Digilent", ENV{ID_USB_INTERFACE_NUM}=="01", SYMLINK+="runcontrol", GROUP="dialout", MODE="0660"
