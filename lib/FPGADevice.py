@@ -75,6 +75,8 @@ class FPGADevice:
         self.iomap["force_align"] = FPGAIO(0x9, 4)
         self.iomap["pll30_lock"] = FPGAIO(0x8, 4)     # hw v2: clk_wiz 30.72 -> 122.88 MHz locked
         self.iomap["gps_run"] = FPGAIO(0x26, 0)       # hw v2: GPS_RESET pin (active low), 0 = GPS in reset
+        self.iomap["pll30_lost"] = FPGAIO(0x27, 0)    # hw v2: clk_wiz_0 lost lock since last clear (write 0x27)
+        self.iomap["jc_lost"] = FPGAIO(0x27, 1)       # hw v2: 2nd lock bit (jitter cleaner, removed in the single-MMCM firmware: = bit 0)
 
     def close(self):
         self.serial.close()

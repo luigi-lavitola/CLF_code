@@ -55,6 +55,9 @@ def dump(f, hw):
     v8 = a(0x08)
     print(f"0x08 locks            : {v8:#06x}  "
           + bits(v8, [(0, "PLL12M"), (4, "PLL30M72"), (2, "jitter_cleaner"), (3, "VCXOLock"), (1, "Lock_10M")]))
+    v27 = a(0x27)
+    print(f"0x27 lock lost        : {v27:#06x}  PLL30M72_lost={v27 & 1} jitter_cleaner_lost={v27 >> 1 & 1} "
+          "(stay 1 until 0x27 is written; 1 after power-up; single-MMCM firmware: bit1 = bit0)")
     v26 = a(0x26)
     print(f"0x26 GPS control      : {v26:#06x}  gps_run={v26 & 1} (0 = GPS_RESET low, module in reset; "
           "also 0 on firmware without the register)")
