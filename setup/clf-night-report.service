@@ -1,0 +1,14 @@
+# Morning report of the last night to Telegram (tools/night_report.py), started by clf-night-report.timer.
+# Credentials: /opt/CLF_code/conf/telegram.yml (not in git). Install: see setup/README.md.
+#
+#   test now:  systemctl start clf-night-report   (then: journalctl -u clf-night-report)
+
+[Unit]
+Description=CLF night report to Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/CLF_code
+ExecStart=/usr/bin/python3 tools/night_report.py

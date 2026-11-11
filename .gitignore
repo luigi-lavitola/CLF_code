@@ -4,6 +4,7 @@ spikes/*.csv
 logs/*.csv*
 logs/*.log*
 conf/parameters.yml
+conf/telegram.yml
 
 # local scripts with credentials in clear (e.g. utils/DB_CLF.py, MySQL AugerMonitor): never commit
 utils/

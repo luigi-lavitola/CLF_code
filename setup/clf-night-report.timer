@@ -1,0 +1,12 @@
+# Every day at 12:05 UTC (09:05 in Malargue): the latest run of the calendar (CALIB) ends ~11:15 UTC.
+# Persistent: if the PC was off at 12:05, the report is sent at the next boot.
+
+[Unit]
+Description=CLF night report to Telegram, every morning
+
+[Timer]
+OnCalendar=*-*-* 12:05:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

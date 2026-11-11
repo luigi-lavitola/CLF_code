@@ -10,6 +10,7 @@ File di questa cartella:
 | `clf.service` | `/etc/systemd/system/clf.service` |
 | `gpsd.default` | `/etc/default/gpsd` |
 | `90-pps.rules` | `/etc/udev/rules.d/90-pps.rules` |
+| `clf-night-report.service`, `.timer` | `/etc/systemd/system/` (§4d) |
 | `chrony-clf.conf` | `/etc/chrony/conf.d/clf.conf` (oppure in coda a `/etc/chrony/chrony.conf`) |
 | `99-clf-serial.rules` | `/etc/udev/rules.d/99-clf-serial.rules` |
 | `pps-gpio.dts` | overlay del PPS (vedi §0.2) |
@@ -326,6 +327,36 @@ Uso della pagina:
 
 La pagina carica Plotly da `cdn.plot.ly`: il browser del proprio PC deve avere accesso a internet
 (il PC CLF no).
+
+## 4d. Rapporto della notte su Telegram
+
+`tools/night_report.py` manda ogni mattina un messaggio (in inglese) con il riassunto della notte appena
+finita: run eseguiti rispetto a quelli del calendario FD, run uccisi / con errori / senza colpi / rifiutati
+per allarme, timestamp validi, righe ERROR e WARNING dei log, log fermi prima della fine della notte.
+Un messaggio per sito, ogni mattina anche quando va tutto bene: **se non arriva, qualcosa è fermo**.
+Serve accesso a internet in uscita verso `api.telegram.org`.
+
+Credenziali del bot in `conf/telegram.yml` (non versionato, come `parameters.yml`):
+```yaml
+token: "123456789:AA..."        # da BotFather
+chat_id: 123456789              # utente, o gruppo (numero negativo)
+```
+Il chat id: scrivere un messaggio al bot (o nel gruppo in cui è stato aggiunto), poi
+`curl -s https://api.telegram.org/bot<TOKEN>/getUpdates` e leggere `"chat":{"id":...}`.
+
+```bash
+chmod 600 conf/telegram.yml
+python3 tools/night_report.py --dry-run                      # stampa il messaggio, non lo manda
+python3 tools/night_report.py --night 2026-11-11 --dry-run   # una notte precisa
+cp setup/clf-night-report.service setup/clf-night-report.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now clf-night-report.timer                # ogni giorno alle 12:05 UTC
+systemctl start clf-night-report                             # prova subito: deve arrivare il messaggio
+systemctl list-timers clf-night-report.timer
+```
+
+La notte D va dalle 12:00 UTC di D alle 12:00 di D+1; l'ultimo run del calendario (CALIB) può finire
+verso le 11:15 UTC. Con `--only-problems` non manda niente quando è tutto a posto (sconsigliato).
 
 ## 5. Log
 
