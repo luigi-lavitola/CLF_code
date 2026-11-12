@@ -12,6 +12,7 @@ Night D = 12:00 UTC of day D -> 12:00 UTC of D+1 (as in the dashboard). Checked:
   - runs killed, with ERROR lines, without shots, or refused because of alarms;
   - valid shot timestamps per FD/TANK run;
   - ERROR / WARNING lines of run.log, device.log, hk.log;
+  - from hk.log: time without GPS fix or in holdover (antenna!), FPGA clock lock lost (0x27);
   - logs that stop before the end of the night.
 
 Telegram credentials: conf/telegram.yml (not in git)
@@ -40,6 +41,8 @@ LOG_GAP_S = 1800            # logs ending this long before the end of the night:
 MAX_LINES = 8               # per list in the message
 TELEGRAM_MAX = 4000         # Telegram limit is 4096 characters
 RUN_TYPES = ("FD", "TANK", "RAMAN", "CALIB")
+GPS_BAD_MIN_S = 300         # GPS without fix / in holdover longer than this in the night: problem
+HK_SAMPLE_MAX_S = 60        # an hk sample (every ~11 s) counts at most this long (gaps: program down)
 
 
 def utc(t):
@@ -84,8 +87,48 @@ def _norm(msg):
     return re.sub(r"\d+(\.\d+)?", "#", msg)[:120]
 
 
-def build_report(site, night, expected, runs, refusals, events, last_log_t, now):
-    """(ok, text) of the report. expected [(t, TYPE)], runs/refusals/events as in logparse."""
+def _dur(s):
+    s = int(round(s))
+    return f"{s // 3600}h{s % 3600 // 60:02d}m" if s >= 3600 else f"{max(s // 60, 1)} min"
+
+
+def _v(values, name):
+    v = values.get(name)
+    return None if v is None or v[0] is None or v[0] != v[0] else v[0]
+
+
+def time_ref_summary(rows):
+    """GPS / FPGA clock state over the night from the hk.log rows (logparse.hk_rows).
+
+    A sample is 'bad' with no usable fix (gps_fix False) or the receiver in holdover;
+    each sample lasts until the next one (at most HK_SAMPLE_MAX_S). None without rows."""
+    if not rows:
+        return None
+    total = bad_s = 0.0
+    periods = []                    # [start, end] of contiguous bad samples
+    lock_lost, tacc = [], []
+    for i, (t, values) in enumerate(rows):
+        dt_s = min(rows[i + 1][0] - t, HK_SAMPLE_MAX_S) if i + 1 < len(rows) else 0.0
+        total += dt_s
+        bad = _v(values, "gps_fix") == 0 or _v(values, "gps_holdover") == 1
+        if bad:
+            bad_s += dt_s
+            if periods and t - periods[-1][1] <= HK_SAMPLE_MAX_S:
+                periods[-1][1] = t + dt_s
+            else:
+                periods.append([t, t + dt_s])
+        elif _v(values, "gps_tacc_ns") is not None:
+            tacc.append(_v(values, "gps_tacc_ns"))
+        if _v(values, "fpga_lock_lost") == 1:
+            lock_lost.append(t)
+    return {"total_s": total, "bad_s": bad_s, "periods": periods,
+            "tacc_max": max(tacc) if tacc else None, "lock_lost": lock_lost,
+            "lock_known": any(_v(v, "fpga_lock_lost") is not None for _, v in rows)}
+
+
+def build_report(site, night, expected, runs, refusals, events, last_log_t, now, timeref=None):
+    """(ok, text) of the report. expected [(t, TYPE)], runs/refusals/events as in logparse,
+    timeref from time_ref_summary() (None: not checked)."""
     t0, t1 = night_window(night)
     problems = []
 
@@ -120,6 +163,26 @@ def build_report(site, night, expected, runs, refusals, events, last_log_t, now)
                             f"({r['n_shots'] - r['n_packet']} without packet, "
                             f"{r['n_stale'] + r['n_wrong']} of another shot)")
 
+    timeline = None
+    tproblems = []                  # time reference: listed first, never cut by MAX_LINES
+    if timeref:
+        good = 100.0 * (1 - timeref["bad_s"] / timeref["total_s"]) if timeref["total_s"] else 0.0
+        timeline = f"GPS: fix and locked {good:.1f} % of the night"
+        if timeref["tacc_max"] is not None:
+            timeline += f", tAcc max {timeref['tacc_max']:.0f} ns"
+        if timeref["bad_s"] >= GPS_BAD_MIN_S:
+            longest = sorted(timeref["periods"], key=lambda p: p[0] - p[1])[:3]
+            when = ", ".join(f"{utc(a)} for {_dur(b - a)}" for a, b in sorted(longest))
+            tproblems.append(f"GPS without fix or in holdover {_dur(timeref['bad_s'])} "
+                            f"({when}): check antenna and cable")
+        if timeref["lock_known"]:
+            n = len(timeref["lock_lost"])
+            timeline += f"; FPGA clock lock lost {n}×" if n else "; FPGA clock always locked"
+            if n:
+                tproblems.append(f"FPGA clock (MMCM) lost lock {n}× from {utc(timeref['lock_lost'][0])}: "
+                                "shot timestamps may be wrong")
+    problems = tproblems + problems
+
     end = min(t1, now)
     if last_log_t < end - LOG_GAP_S:
         when = dt.datetime.fromtimestamp(last_log_t, dt.timezone.utc).strftime("%Y-%m-%d %H:%M") \
@@ -136,6 +199,8 @@ def build_report(site, night, expected, runs, refusals, events, last_log_t, now)
     lines = [head, f"Runs (done/expected): {counts}"]
     if shots:
         lines.append(f"Valid timestamps: {100.0 * good / shots:.1f} % of {shots} shots")
+    if timeline:
+        lines.append(timeline)
     lines.append(f"Log lines: {levels['ERROR']} ERROR, {levels['WARNING']} WARNING")
     if problems:
         lines.append("")
@@ -192,8 +257,10 @@ def main():
     refusals = [f for f in refusals_all if t0 <= f["t"] < t1]
     _, events = lp.parse_events(args.logs, t0, t1)
     last_log_t = lp.latest_time(args.logs)
+    timeref = time_ref_summary(lp.hk_rows(args.logs, t0, t1))
 
-    ok, text = build_report(identity.upper(), night, expected, runs, refusals, events, last_log_t, now)
+    ok, text = build_report(identity.upper(), night, expected, runs, refusals, events, last_log_t, now,
+                            timeref)
     sys.stdout.reconfigure(errors="replace")         # emoji on a non-UTF-8 console
     print(text)
     if args.dry_run or (ok and args.only_problems):

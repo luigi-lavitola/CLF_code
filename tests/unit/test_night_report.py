@@ -78,3 +78,32 @@ def test_long_lists_are_cut():
     runs = [run("FD", T0 + 60 * i, status="killed") for i in range(20)]
     ok, text = report(expected(*["FD"] * 20), runs)
     assert "... and 12 more" in text and len(text) <= nr.TELEGRAM_MAX
+
+
+def hk_row(t, fix=True, holdover=0.0, tacc=8.0, lock=None):
+    v = {"gps_fix": (1.0 if fix else 0.0, "", True), "gps_holdover": (holdover, "", False),
+         "gps_tacc_ns": (tacc, "ns", False)}
+    if lock is not None:
+        v["fpga_lock_lost"] = (lock, "", False)
+    return (t, v)
+
+
+def test_gps_loss_and_lock_lost_are_problems():
+    rows = [hk_row(T0 + 10 * i, lock=0) for i in range(100)]
+    rows += [hk_row(T0 + 1000 + 10 * i, fix=False, holdover=1.0, tacc=None) for i in range(60)]
+    rows += [hk_row(T0 + 1600, lock=1), hk_row(T0 + 1610, lock=0)]
+    ok, text = report(expected("FD"), [run("FD", T0 + 3600)])
+    assert ok and "GPS:" not in text                      # not checked without hk rows
+    ok, text = nr.build_report("CLF", NIGHT, expected("FD"), [run("FD", T0 + 3600)], [], [], NOW - 60,
+                               NOW, nr.time_ref_summary(rows))
+    assert not ok
+    assert "GPS without fix or in holdover 10 min (12:16 for 10 min)" in text
+    assert "FPGA clock (MMCM) lost lock 1× from 12:26" in text
+    assert "tAcc max 8 ns" in text
+
+
+def test_gps_ok_line():
+    rows = [hk_row(T0 + 10 * i, lock=0) for i in range(100)]
+    rows.append(hk_row(T0 + 1000, fix=False))            # one sample: below GPS_BAD_MIN_S
+    ok, text = nr.build_report("CLF", NIGHT, [], [], [], [], NOW - 60, NOW, nr.time_ref_summary(rows))
+    assert ok and "GPS: fix and locked 100.0 % of the night, tAcc max 8 ns; FPGA clock always locked" in text

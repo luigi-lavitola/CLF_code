@@ -233,13 +233,19 @@ def _parse_hk_file(path):
     return out
 
 
-def parse_hk(log_dir, t_from, t_to, max_points=1500):
-    """{name: {"unit", "bool", "t": [...], "v": [...]}} binned to at most max_points
-    (numeric: median of the bin, boolean: max, so an alarm in a bin is never hidden)."""
+def hk_rows(log_dir, t_from, t_to):
+    """[(t, {name: (value, unit, is_bool)})] of the INFO lines of hk.log in [t_from, t_to], unbinned."""
     rows = []
     for path in _files(log_dir, "hk.log"):
         rows.extend(r for r in _cached(path, _parse_hk_file) if t_from <= r[0] <= t_to)
     rows.sort(key=lambda r: r[0])
+    return rows
+
+
+def parse_hk(log_dir, t_from, t_to, max_points=1500):
+    """{name: {"unit", "bool", "t": [...], "v": [...]}} binned to at most max_points
+    (numeric: median of the bin, boolean: max, so an alarm in a bin is never hidden)."""
+    rows = hk_rows(log_dir, t_from, t_to)
     if not rows:
         return {}
     width = max((t_to - t_from) / max_points, 10.0)
