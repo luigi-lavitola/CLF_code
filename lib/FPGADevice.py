@@ -50,6 +50,7 @@ class FPGADevice:
         self.regmap["mux_bnc_4"] = FPGARegister(0x21)
         self.regmap["shots_num"] = FPGARegister(0x22, 2)
         self.regmap["shots_cnt"] = FPGARegister(0x24, 2)
+        self.regmap["lock_lost"] = FPGARegister(0x27)       # hw v2: sticky lock-lost bits, any write clears them
         self.regmap["fw_build"] = FPGARegister(0xFC, 2)     # bitstream build time (USR_ACCESS), 0 if absent
         self.regmap["fw_version"] = FPGARegister(0xFF)      # 0 on firmware without the register
 

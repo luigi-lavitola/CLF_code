@@ -51,7 +51,9 @@ class HouseKeeping:
 
         self.params = params
         self.identity = str.lower(self.params['identity'])
-        self.tick_ns = get_profile(self.params).tick_ns      # FPGA clock period for gps_ns_error
+        hw = get_profile(self.params)
+        self.tick_ns = hw.tick_ns           # FPGA clock period for gps_ns_error
+        self.hw_version = hw.version        # 0x27 lock-lost register only on hw v2
 
         self.log = logging.getLogger("housekeeping")
         self.log.setLevel(logging.INFO)
@@ -165,6 +167,39 @@ class HouseKeeping:
                     if gps_values is None:
                         gps_values = self.gps_status.values(time.time())
                     d['value'] = round(gps_values[d['name']], 7)
+            elif d['dev'] == 'fpga':
+                if d['name'] == 'fpga_lock_lost':
+                    d['value'] = self.check_lock_lost()
+
+    LOCK_WARNING_PERIOD_S = 600
+
+    def check_lock_lost(self):
+        """Register 0x27 (hw v2): 1 if the clock MMCM lost lock since the previous cycle.
+
+        The bit is sticky (set at power-up too) and any write to 0x27 clears it: read,
+        then clear when set. The first read after start only clears the power-up value.
+        A loss is logged as WARNING, then at most once per LOCK_WARNING_PERIOD_S with the
+        number of cycles with a loss in between. NaN on hw v1 (no register)."""
+        if getattr(self, 'hw_version', 1) < 2:
+            return float('nan')
+        lost = self.fpga.read_register('lock_lost') & 1
+        if lost:
+            self.fpga.write_register('lock_lost', 0)
+        if not getattr(self, 'lock_checked', False):
+            self.lock_checked = True
+            self.lock_lost_count = 0
+            self.lock_warned = 0.0
+            self.log.info(f"FPGA clock lock-lost flag {'cleared (set since power-up or last clear)' if lost else 'not set'}")
+            return 0
+        if lost:
+            self.lock_lost_count += 1
+            now = time.time()
+            if now - self.lock_warned >= self.LOCK_WARNING_PERIOD_S:
+                self.log.warning(f"FPGA clock MMCM lost lock (122.88 MHz clock unstable: shot timestamps "
+                                 f"may be wrong; {self.lock_lost_count} cycle(s) with a loss since the last warning)")
+                self.lock_warned = now
+                self.lock_lost_count = 0
+        return int(lost)
 
     def log_data(self):
         s = ''
@@ -213,6 +248,12 @@ class HouseKeeping:
                                       or v < d.get('min', float('-inf')) or v > d.get('max', float('inf')))
                         if d['alarm']:
                             alarm_data.append(d)
+
+                elif d['dev'] == 'fpga':
+                    # fpga_lock_lost with 'alarm' in sensors.yml: blocking alarm for the cycle
+                    d['alarm'] = d['value'] == 1
+                    if d['alarm']:
+                        alarm_data.append(d)
 
         self.alarm_data = alarm_data
         if len(alarm_data):

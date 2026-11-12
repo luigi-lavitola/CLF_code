@@ -185,3 +185,11 @@
 - dev: gps
   name: gps_jam               # MON-HW jamming indicator (0..255)
   value: .nan
+
+# FPGA register 0x27 (hw v2 only, NaN on v1): 1 = the 122.88 MHz clock MMCM lost lock
+# since the previous cycle (read, then cleared). Logged as WARNING; add 'alarm: False'
+# to also make it a blocking alarm (the run in progress is aborted).
+
+- dev: fpga
+  name: fpga_lock_lost
+  value: .nan
